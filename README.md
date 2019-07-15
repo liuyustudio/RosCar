@@ -85,7 +85,7 @@
 
 #### 2.3.2. 接口服务
 
-接口对外提供的功能如下用例图所示：
+接口对外提供的主要功能如下用例图所示：
 
 ![Interface](doc/images/phase-zero/tldUseCase_Interface.svg)
 
