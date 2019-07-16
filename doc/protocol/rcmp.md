@@ -33,10 +33,10 @@ ROS Car Message Protocol 简称 (RCMP)，
 
 ### 2.2. 终端类型定义
 
-| 终端类型 | 编号 |         说明 |
-| -------- | ---- | --- |
-| 设备终端 | 1    | ROS 终端测试小车 |
-| 用户终端 | 2    | 用户终端、外部系统等 |
+| 终端类型 |   定义   |         说明         |
+| -------- | -------- | -------------------- |
+| 设备终端 | Terminal | ROS 终端测试小车     |
+| 用户终端 | Client   | 用户终端、外部系统等 |
 
 ## 3. RCMP 通讯协议
 
@@ -67,15 +67,15 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 ``` json
 {
   "msg": "msg id",
-  "sequence": 0,
-  "payload": {}
+  "seq": 0,
+  "payload": null
 }
 ```
 
 其中相关数据字段含义如下：
 
 * msg: 请求信令 ID，区分大小写，定义见后。
-* sequence: 信令序列号。此序列号为符合 JSON 规范的不为负整数，由请求方生成，无需连续，但在同一会话中应保持唯一。
+* seq: 信令序列号。此序列号为符合 JSON 规范的不为负整数，由请求方生成，无需连续，但在同一会话中应保持唯一。
 * payload: 信令数据，定义见具体数据。
 
 #### 3.2.2. 回复信令格式
@@ -83,17 +83,17 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 ```json
 {
   "msg": "msg id",
-  "sequence": 0,
+  "seq": 0,
   "errno": "",
   "errmsg": "",
-  "payload": {}
+  "payload": null
 }
 ```
 
 其中相关数据字段含义如下：
 
 * msg: 回复信令 ID，区分大小写，定义见后。
-* sequence: 信令序列号。此序列号为符合 JSON 规范的不为负整数，由请求方生成。回复信令中的序列号应与对应请求信令中的序列号应相同。
+* seq: 信令序列号。此序列号为符合 JSON 规范的不为负整数，由请求方生成。回复信令中的序列号应与对应请求信令中的序列号应相同。
 * errno: 字符串格式错误码，定义见后。
 * errmsg: 字符串格式错误说明，无错误时可为空。
 * payload: 信令数据，定义见具体数据。
@@ -129,14 +129,15 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 | INV_FMT | 无效协议格式 |
 | INV_VER | 无效协议版本 |
 
-### 3.3. 会话建立与维持
+### 3.3. 会话建立、维持与信令收发
 
 * 底层通讯链路建立后，客户端因通过 Login 信令建立会话。
 * 会话建立后，通讯双方可互发心跳信令 Ping，来测试与维护与对端的会话。
-* 会话建立后，每当空闲超过 30 秒，通信双方可发送 Ping 信令维持会话。当连续两个 Ping 信令没有响应时，此会话应被断开。
+* 会话建立后，每当空闲超过 30 秒，通信双方需发送 Ping 信令维持会话。当连续两个 Ping 信令没有响应时，此会话应被断开。
 * 当通讯双方检测到数据帧发生错误时，应发送错误码为 INV_FMT 的回复信令（此回复中消息 ID 为空，序列号为 0），然后断开链路。
 * 会话建立后，通讯双方均可通过 Logout 信令中断会话。发送方发送 Logout 信令并等待相关回复后即可断开链路；
   接受方接收 Logout 信令并发送相关回复后即可断开链路。
+* 本协议支持收到回复数据包之前并发发送请求数据包。最大并发量设定为 64。
 
 ### 3.4. 会话状态机
 
@@ -153,7 +154,7 @@ Login 信令格式定义如下：
 ``` json
 {
   "msg": "Login",
-  "sequence": 0,
+  "seq": 0,
   "payload": {
     "ver": 0,
     "type": "",
@@ -173,10 +174,10 @@ LoginResp 信令格式定义如下：
 ```json
 {
   "msg": "LoginResp",
-  "sequence": 0,
+  "seq": 0,
   "errno": "",
   "errmsg": "",
-  "payload": {}
+  "payload": null
 }
 ```
 
@@ -191,8 +192,8 @@ Logout 信令格式定义如下：
 ``` json
 {
   "msg": "Logout",
-  "sequence": 0,
-  "payload": {}
+  "seq": 0,
+  "payload": null
 }
 ```
 
@@ -205,10 +206,10 @@ LogoutResp 信令格式定义如下：
 ```json
 {
   "msg": "LogoutResp",
-  "sequence": 0,
+  "seq": 0,
   "errno": "",
   "errmsg": "",
-  "payload": {}
+  "payload": null
 }
 ```
 
@@ -223,8 +224,8 @@ Ping 信令格式定义如下：
 ``` json
 {
   "msg": "Ping",
-  "sequence": 0,
-  "payload": {}
+  "seq": 0,
+  "payload": null
 }
 ```
 
@@ -237,10 +238,10 @@ Pong 信令格式定义如下：
 ```json
 {
   "msg": "Pong",
-  "sequence": 0,
+  "seq": 0,
   "errno": "",
   "errmsg": "",
-  "payload": {}
+  "payload": null
 }
 ```
 
@@ -255,8 +256,8 @@ Ctl 信令格式定义如下：
 ``` json
 {
   "msg": "Ctl",
-  "sequence": 0,
-  "payload": {}
+  "seq": 0,
+  "payload": null
 }
 ```
 
@@ -269,10 +270,10 @@ CtlResp 信令格式定义如下：
 ```json
 {
   "msg": "CtlResp",
-  "sequence": 0,
+  "seq": 0,
   "errno": "",
   "errmsg": "",
-  "payload": {}
+  "payload": null
 }
 ```
 
@@ -287,8 +288,8 @@ Mt 信令格式定义如下：
 ``` json
 {
   "msg": "Mt",
-  "sequence": 0,
-  "payload": {}
+  "seq": 0,
+  "payload": null
 }
 ```
 
@@ -301,10 +302,10 @@ MtResp 信令格式定义如下：
 ```json
 {
   "msg": "MtResp",
-  "sequence": 0,
+  "seq": 0,
   "errno": "",
   "errmsg": "",
-  "payload": {}
+  "payload": null
 }
 ```
 
@@ -319,8 +320,8 @@ Report 信令格式定义如下：
 ``` json
 {
   "msg": "Report",
-  "sequence": 0,
-  "payload": {}
+  "seq": 0,
+  "payload": null
 }
 ```
 
@@ -333,10 +334,10 @@ ReportResp 信令格式定义如下：
 ```json
 {
   "msg": "ReportResp",
-  "sequence": 0,
+  "seq": 0,
   "errno": "",
   "errmsg": "",
-  "payload": {}
+  "payload": null
 }
 ```
 
