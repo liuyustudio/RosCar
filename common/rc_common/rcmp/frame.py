@@ -36,17 +36,17 @@ class RCMPFrame(object):
             EXP.VRException: An error occurred when encoding.
         '''
 
-        raw_bytes = None
+        if isinstance(payload, str):
+            raw_bytes = bytes(payload, 'utf-8')
+        elif isinstance(payload, bytes):
+            raw_bytes = payload
+        elif not payload:
+            raw_bytes = bytes()
+        else:
+            raise EXP.RCException(
+                errno=ERR.ERROR,
+                errmsg='invalid payload type: {}'.format(type(payload)))
 
-        if not (isinstance(payload, str) or
-                isinstance(payload, bytes)):
-            if not payload:  # for payload is None
-                payload = ''
-            else:
-                raise EXP.RCException(
-                    errno=ERR.ERROR, errmsg='invalid payload type')
-
-        raw_bytes = bytes(payload, 'utf-8')
         payloadSize = len(raw_bytes)
 
         if payloadSize > CONST.RCMP_MAXPAYLOAD:
