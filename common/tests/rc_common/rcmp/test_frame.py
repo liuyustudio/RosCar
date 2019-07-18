@@ -21,7 +21,7 @@ from rc_common.facility import ordered
 from rc_common.rcmp import const as CONST
 from rc_common.rcmp.frame import FRAME_HEAD_FMT, RCMPFrame
 
-PAYLOAD = {"msg": "Login", "seq": 0,
+PAYLOAD = {"cmd": "Login", "seq": 0,
            "payload": {"ver": 0, "type": "", "id": ""}}
 PAYLOAD_STR = json.dumps(PAYLOAD)
 PAYLOAD_BYTES = bytes(PAYLOAD_STR, 'utf-8')

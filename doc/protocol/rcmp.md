@@ -66,7 +66,7 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 
 ``` json
 {
-  "msg": "msg id",
+  "cmd": "cmd id",
   "seq": 0,
   "payload": null
 }
@@ -74,7 +74,7 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 
 其中相关数据字段含义如下：
 
-* msg: 请求信令 ID，区分大小写，定义见后。
+* cmd: 请求信令 ID，区分大小写，定义见后。
 * seq: 信令序列号。此序列号为符合 JSON 规范的不为负整数，由请求方生成，无需连续，但在同一会话中应保持唯一。
 * payload: 信令数据，定义见具体数据。
 
@@ -82,7 +82,7 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 
 ```json
 {
-  "msg": "msg id",
+  "cmd": "cmd id",
   "seq": 0,
   "errno": "",
   "errmsg": "",
@@ -92,7 +92,7 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 
 其中相关数据字段含义如下：
 
-* msg: 回复信令 ID，区分大小写，定义见后。
+* cmd: 回复信令 ID，区分大小写，定义见后。
 * seq: 信令序列号。此序列号为符合 JSON 规范的不为负整数，由请求方生成。回复信令中的序列号应与对应请求信令中的序列号应相同。
 * errno: 字符串格式错误码，定义见后。
 * errmsg: 字符串格式错误说明，无错误时可为空。
@@ -153,7 +153,7 @@ Login 信令格式定义如下：
 
 ``` json
 {
-  "msg": "Login",
+  "cmd": "Login",
   "seq": 0,
   "payload": {
     "ver": 0,
@@ -173,7 +173,7 @@ LoginResp 信令格式定义如下：
 
 ```json
 {
-  "msg": "LoginResp",
+  "cmd": "LoginResp",
   "seq": 0,
   "errno": "",
   "errmsg": "",
@@ -191,7 +191,7 @@ Logout 信令格式定义如下：
 
 ``` json
 {
-  "msg": "Logout",
+  "cmd": "Logout",
   "seq": 0,
   "payload": null
 }
@@ -205,7 +205,7 @@ LogoutResp 信令格式定义如下：
 
 ```json
 {
-  "msg": "LogoutResp",
+  "cmd": "LogoutResp",
   "seq": 0,
   "errno": "",
   "errmsg": "",
@@ -223,7 +223,7 @@ Ping 信令格式定义如下：
 
 ``` json
 {
-  "msg": "Ping",
+  "cmd": "Ping",
   "seq": 0,
   "payload": null
 }
@@ -237,7 +237,7 @@ Pong 信令格式定义如下：
 
 ```json
 {
-  "msg": "Pong",
+  "cmd": "Pong",
   "seq": 0,
   "errno": "",
   "errmsg": "",
@@ -255,7 +255,7 @@ Ctl 信令格式定义如下：
 
 ``` json
 {
-  "msg": "Ctl",
+  "cmd": "Ctl",
   "seq": 0,
   "payload": null
 }
@@ -269,7 +269,7 @@ CtlResp 信令格式定义如下：
 
 ```json
 {
-  "msg": "CtlResp",
+  "cmd": "CtlResp",
   "seq": 0,
   "errno": "",
   "errmsg": "",
@@ -287,7 +287,7 @@ Mt 信令格式定义如下：
 
 ``` json
 {
-  "msg": "Mt",
+  "cmd": "Mt",
   "seq": 0,
   "payload": null
 }
@@ -301,7 +301,7 @@ MtResp 信令格式定义如下：
 
 ```json
 {
-  "msg": "MtResp",
+  "cmd": "MtResp",
   "seq": 0,
   "errno": "",
   "errmsg": "",
@@ -319,7 +319,7 @@ Report 信令格式定义如下：
 
 ``` json
 {
-  "msg": "Report",
+  "cmd": "Report",
   "seq": 0,
   "payload": null
 }
@@ -333,7 +333,7 @@ ReportResp 信令格式定义如下：
 
 ```json
 {
-  "msg": "ReportResp",
+  "cmd": "ReportResp",
   "seq": 0,
   "errno": "",
   "errmsg": "",

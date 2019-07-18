@@ -63,7 +63,7 @@ class RCMPSig(object):
         resp_cmd = CONST.RESP_DICT[cmd]
 
         return {
-            'msg': resp_cmd,
+            'cmd': resp_cmd,
             'seq': seq,
             'errno': errno,
             'errmsg': errmsg,
@@ -73,7 +73,7 @@ class RCMPSig(object):
     @staticmethod
     def resp_err(respCmd, seq, errno, errmsg, payload=None):
         return {
-            'msg': respCmd,
+            'cmd': respCmd,
             'seq': seq,
             'errno': errno,
             'errmsg': errmsg,
@@ -92,7 +92,5 @@ class RCMPSig(object):
                              None)
 
     @staticmethod
-    def encode(self, sig):
-        ''' encode signaling into RCMP Frame '''
-
+    def encode(sig):
         return RCMPFrame.encode(json.dumps(sig))
