@@ -46,7 +46,7 @@ class RCMPSig(object):
             sig = json.loads(frame_payload)
 
             cmd = sig['cmd']
-            if cmd not in CONST.SIG_LIST:
+            if cmd not in CONST.SIG_CMD_LIST:
                 raise EXP.RCException(ERR.ERROR_UNSUPPORT,
                                       'unsupport cmd: {}'.format(cmd))
         except Exception as e:
@@ -56,11 +56,28 @@ class RCMPSig(object):
         return (sig, frame_length)
 
     @staticmethod
-    def resp(sig, errno, errmsg, payload=None):
-        cmd = sig['cmd']
-        seq = sig['seq']
+    def encode(sig):
+        return RCMPFrame.encode(json.dumps(sig))
 
-        resp_cmd = CONST.RESP_DICT[cmd]
+    @staticmethod
+    def req(req_cmd, seq, payload=None):
+
+        if req_cmd not in CONST.SIG_REQ_CMD_LIST:
+            raise EXP.RCException(ERR.ERROR_INVALID,
+                                  'invalid req cmd id: {}'.format(req_cmd))
+
+        return {
+            'cmd': req_cmd,
+            'seq': seq,
+            'payload': payload
+        }
+
+    @staticmethod
+    def resp(resp_cmd, seq, errno, errmsg, payload=None):
+
+        if resp_cmd not in CONST.SIG_RESP_CMD_LIST:
+            raise EXP.RCException(ERR.ERROR_INVALID,
+                                  'invalid resp cmd id: {}'.format(resp_cmd))
 
         return {
             'cmd': resp_cmd,
@@ -71,26 +88,27 @@ class RCMPSig(object):
         }
 
     @staticmethod
-    def resp_err(respCmd, seq, errno, errmsg, payload=None):
-        return {
-            'cmd': respCmd,
-            'seq': seq,
-            'errno': errno,
-            'errmsg': errmsg,
-            'payload': payload
-        }
+    def resp_from_sig(sig, errno, errmsg, payload=None):
+
+        return RCMPSig.resp(CONST.RESP_DICT[sig['cmd']],
+                            sig['seq'],
+                            errno,
+                            errmsg,
+                            payload)
 
     @staticmethod
-    def resp_exp(respCmd, seq, exp):
+    def resp_from_exp(respCmd, seq, exp):
         if isinstance(exp, EXP.RCException):
-            RCMPSig.resp_err(respCmd, seq,
-                             exp.errno, exp.errmsg,
-                             exp.payload)
+            errno = exp.errno
+            errmsg = exp.errmsg
+            payload = exp.payload
         else:
-            RCMPSig.resp_err(respCmd, seq,
-                             ERR.ERROR, '{}'.format(exp),
-                             None)
+            errno = ERR.ERROR
+            errmsg = '{}'.format(exp)
+            payload = None
 
-    @staticmethod
-    def encode(sig):
-        return RCMPFrame.encode(json.dumps(sig))
+        return RCMPSig.resp(respCmd,
+                            seq,
+                            errno,
+                            errmsg,
+                            payload)

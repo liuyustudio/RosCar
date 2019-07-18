@@ -31,7 +31,7 @@ SIG_REPORT = 'Report'
 SIG_REPORT_RESP = 'ReportResp'
 
 
-SIG_LIST = [
+SIG_CMD_LIST = [
     SIG_LOGIN,
     SIG_LOGIN_RESP,
     SIG_LOGOUT,
@@ -43,6 +43,26 @@ SIG_LIST = [
     SIG_MT,
     SIG_MT_RESP,
     SIG_REPORT,
+    SIG_REPORT_RESP,
+]
+
+
+SIG_REQ_CMD_LIST = [
+    SIG_LOGIN,
+    SIG_LOGOUT,
+    SIG_PING,
+    SIG_CONTROL,
+    SIG_MT,
+    SIG_REPORT,
+]
+
+
+SIG_RESP_CMD_LIST = [
+    SIG_LOGIN_RESP,
+    SIG_LOGOUT_RESP,
+    SIG_PONG,
+    SIG_CONTROL_RESP,
+    SIG_MT_RESP,
     SIG_REPORT_RESP,
 ]
 
