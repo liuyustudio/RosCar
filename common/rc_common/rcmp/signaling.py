@@ -38,7 +38,6 @@ class RCMPSig(object):
         frame_payload, frame_length = RCMPFrame.parse(rawbuf)
 
         # parse frame payload
-
         try:
             if isinstance(frame_payload, bytes):
                 # decode buffer as 'utf-8'

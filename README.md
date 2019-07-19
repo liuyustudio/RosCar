@@ -63,7 +63,7 @@
 
 * 控制器：
 
-  此部分为 ROS Car 的管理模块。对外，通过 CLI/GUI 及 API 与外部系统/人员进行交互。对内，实现对终端设备的操作与管理。
+  此部分为 ROS Car 的管理服务器。对外，通过 CLI 及 API 与外部系统/人员进行交互。对内，通过 ROS 系统实现对终端设备的操作与管理。
 
 * 终端设备：
 
@@ -71,23 +71,23 @@
 
 ### 2.3. Interface
 
-#### 2.3.1. 数据链路
-
 项目中各模块间的接口如下图所示：
 
 ![Interface](doc/images/phase-zero/tldInterface.svg)
 
 * 控制器与终端的接口链路将使用 ROS 系统内部通讯机制。
-* 控制器对外只提供 Unix Domain Socket(UDS) 接口。
-* 依据控制器对外提供的 UDS 接口，系统将实现特定的适配器，如：基于 TCP/UDP 的网络 API 适配器等。
-* 外部系统可通过适配器 或是 UDS 接口与本系统进行交互。
-* 某些特殊类型数据流，如：视频流，将在特定章节中加以说明。
+* 控制器对外将提供 CLI 及 API 接口, 外部系统可通过接口与本系统进行交互。
+* 某些特殊类型数据流接口，如：视频流传输接口，将在特定章节中加以说明。
 
-#### 2.3.2. 接口服务
-
-接口对外提供的主要功能如下用例图所示：
+从终端用户的角度预测，本系统对外的接口需要提供的功能如下用例图所示：
 
 ![Interface](doc/images/phase-zero/tldUseCase_Interface.svg)
+
+### 2.4. 基础架构
+
+ROS Car 项目基础架构如下图所示:
+
+![Infrastructure](doc/images/phase-zero/tldInfrastructure.svg)
 
 ## 3. 通讯协议
 
