@@ -97,13 +97,17 @@ ROS Car 项目基础架构如下图所示:
 
 [RCMP](doc/protocol/rcmp.md)
 
-## 4. ROS Server
+## 4. ROS Car Server
 
 TBD.
 
-## 5. ROS Terminal
+## 5. ROS Car
 
-TBD.
+### ROS Car 框架图
+
+ROS Car 框架如下图所示
+
+![Car Infrastructure](doc/images/phase-zero/tldInfrastructure_Car.svg)
 
 ## 6. ROS Interfaces
 
