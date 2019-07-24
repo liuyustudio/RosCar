@@ -3,5 +3,4 @@ build
 devel
 install
 src/CMakeLists.txt
-src/interface
 src/pilot/include
