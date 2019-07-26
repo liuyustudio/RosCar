@@ -13,16 +13,32 @@ namespace interface
 class UDS
 {
 public:
-    static const int EPOLL_TIMEOUT;
-    static const int EPOLL_RETRY_INTERVAL;
-    static const int MAX_CLIENT_COUNT;
+    static const int EPOLL_TIMEOUT = 1 * 1000;
+    static const int EPOLL_RETRY_INTERVAL = 1 * 100 * 1000;
+    static const int EPOLL_MAX_EVENTS = 16;
+    static const int MAX_CLIENT_COUNT = 8;
+    static const int RECV_BUFFER_CAPACITY = 64 * 1024;
+    static const int SEND_BUFFER_CAPACITY = 64 * 1024;
     static const char *UDS_PATH;
 
-public:
+    typedef struct SESSION
+    {
+        int soc;
+        unsigned int events;
+        int recvBufPos = 0;
+        int recvBufEnd = 0;
+        int sendBufPos = 0;
+        int sendBufEnd = 0;
+        char recvBuf[RECV_BUFFER_CAPACITY];
+        char sendBuf[SEND_BUFFER_CAPACITY];
+    } SESSION_t;
+
     UDS();
 
-protected:
-    static void threadFunc(UDS * pUDS);
+    void threadFunc();
+    bool onSession(SESSION_t &sess);
+    bool onRead(SESSION_t &sess);
+    bool onWrite(SESSION_t &sess);
 
     bool init();
     void teardown();
