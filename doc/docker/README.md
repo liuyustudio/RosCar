@@ -10,5 +10,5 @@ docker tag roscar:ros-kinetic-base roscar:latest
 ## run
 
 ```sh
-docker run -it --rm --hostname ros --name ros -v /folder/to/rosCar/car:/car roscar:ros-kinetic-base bash
+docker run -it --hostname rosCar --name rosCar -v /workspace/project/rosCar/car:/car roscar:ros-kinetic-base bash
 ```
