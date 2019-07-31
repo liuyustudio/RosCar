@@ -5,7 +5,7 @@
 #include "ros/ros.h"
 
 #include "uds.h"
-#include "rcmp.h"
+#include "roscar_common/rcmp.h"
 
 using namespace std;
 using namespace roscar::car::interface;
