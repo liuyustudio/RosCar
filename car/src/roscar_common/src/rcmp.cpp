@@ -11,7 +11,7 @@ namespace roscar
 {
 namespace car
 {
-namespace interface
+namespace roscar_common
 {
 
 const char *RCMP::FIELD_CMD = "cmd";
@@ -105,19 +105,19 @@ const char *RCMP::SCHEMA_SIG_LOGIN_RESP = ""
                                           "}";
 
 const char *RCMP::SCHEMA_SIG_LOGOUT = ""
-                                     "{"
-                                     "   \"type\":\"object\","
-                                     "   \"properties\":{"
-                                     "       \"cmd\":{"
-                                     "           \"type\":\"string\""
-                                     "       },"
-                                     "       \"seq\":{"
-                                     "           \"type\":\"integer\","
-                                     "           \"minimum\":0"
-                                     "       }"
-                                     "   },"
-                                     "   \"required\":[\"cmd\",\"seq\"]"
-                                     "}";
+                                      "{"
+                                      "   \"type\":\"object\","
+                                      "   \"properties\":{"
+                                      "       \"cmd\":{"
+                                      "           \"type\":\"string\""
+                                      "       },"
+                                      "       \"seq\":{"
+                                      "           \"type\":\"integer\","
+                                      "           \"minimum\":0"
+                                      "       }"
+                                      "   },"
+                                      "   \"required\":[\"cmd\",\"seq\"]"
+                                      "}";
 
 const char *RCMP::SCHEMA_SIG_LOGOUT_RESP = RCMP::SCHEMA_SIG_LOGIN_RESP;
 
@@ -177,7 +177,7 @@ SchemaDocument *RCMP::loadSchema(const char *schema)
     return new SchemaDocument(doc);
 }
 
-int RCMP::parse(void *pBuf, int len, rapidjson::Document &doc)
+int RCMP::parse(void *pBuf, int &len, rapidjson::Document &doc)
 {
     FRAME_t *pFrame = static_cast<FRAME_t *>(pBuf);
     int nRet = verifyFrame(pFrame, len);
@@ -189,7 +189,10 @@ int RCMP::parse(void *pBuf, int len, rapidjson::Document &doc)
     try
     {
         string strPayload;
-        strPayload.append(pFrame->payload, pFrame->len() - RCMP_FRAMEHEADSIZE);
+
+        // set 'len' to frame size
+        len = pFrame->len();
+        strPayload.append(pFrame->payload, len - RCMP_FRAMEHEADSIZE);
 
         doc.Parse(strPayload.c_str());
         if (doc.HasParseError())
@@ -302,6 +305,6 @@ bool RCMP::verifySig(rapidjson::Document &doc)
     return SUCCESS;
 }
 
-} // namespace interface
+} // namespace roscar_common
 } // namespace car
 } // namespace roscar

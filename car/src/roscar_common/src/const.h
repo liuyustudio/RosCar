@@ -2,7 +2,7 @@ namespace roscar
 {
 namespace car
 {
-namespace interface
+namespace roscar_common
 {
 
 static const int RCMP_FRAMEHEADSIZE = 4;
@@ -12,6 +12,6 @@ static const int RCMP_MIN_SIGNALING_LENGTH = RCMP_FRAMEHEADSIZE;
 static const int RCMP_MAX_SIGNALING_LENGTH = 0x8000;
 static const int RCMP_MAXPAYLOAD = RCMP_MAX_SIGNALING_LENGTH - RCMP_FRAMEHEADSIZE;
 
-} // namespace interface
+} // namespace roscar_common
 } // namespace car
 } // namespace roscar

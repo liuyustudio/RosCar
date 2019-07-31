@@ -1,5 +1,5 @@
-#ifndef _ROSCAR_CAR_INTERFACE_RCMP_H_
-#define _ROSCAR_CAR_INTERFACE_RCMP_H_
+#ifndef _ROSCAR_CAR_ROSCARCOMMON_RCMP_H_
+#define _ROSCAR_CAR_ROSCARCOMMON_RCMP_H_
 
 #include <assert.h>
 
@@ -10,7 +10,7 @@ namespace roscar
 {
 namespace car
 {
-namespace interface
+namespace roscar_common
 {
 
 class RCMP
@@ -78,11 +78,11 @@ public:
      * parse RCMP signaling from given buffer
      * 
      * pBuf: raw buffer
-     * len: data lenth
+     * len: in - data lenth; out - parsed frame's size, in byte.
      * 
-     * return: RCMP signaling object (rapidjson DOM object)
+     * return: corresponding error code
      */
-    int parse(void *pBuf, int len, rapidjson::Document &doc);
+    int parse(void *pBuf, int &len, rapidjson::Document &doc);
 
 protected:
     rapidjson::SchemaDocument * mpSchema_Sig;
@@ -105,8 +105,8 @@ protected:
     bool verifySig(rapidjson::Document &doc);
 };
 
-} // namespace interface
+} // namespace roscar_common
 } // namespace car
 } // namespace roscar
 
-#endif // _ROSCAR_CAR_INTERFACE_RCMP_H_
+#endif // _ROSCAR_CAR_ROSCARCOMMON_RCMP_H_

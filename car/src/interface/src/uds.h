@@ -2,6 +2,8 @@
 #define _ROSCAR_CAR_INTERFACE_UDS_H_
 
 #include "ros/ros.h"
+#include "rapidjson/document.h"
+#include "roscar_common/rcmp.h"
 
 namespace roscar
 {
@@ -36,20 +38,24 @@ public:
     UDS();
 
     void threadFunc();
+
+protected:
     bool onSession(SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
+    bool parseSig(SESSION_t & sess, rapidjson::Document & doc);
 
     bool init();
     void teardown();
 
-protected:
     ros::NodeHandle mNh;
     ros::ServiceClient mSrv_Info;
 
     bool mStopUDS;
     int mEpollfd = 0;
     int mUdsSoc = 0;
+
+    roscar_common::RCMP mRcmp;
 };
 
 } // namespace interface

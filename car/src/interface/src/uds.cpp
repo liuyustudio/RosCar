@@ -12,9 +12,12 @@
 #include <map>
 #include <list>
 
+#include "roscar_common/error.h"
 #include "pilot/Info.h"
 
 using namespace std;
+using namespace rapidjson;
+using namespace roscar::car::roscar_common;
 
 namespace roscar
 {
@@ -158,8 +161,17 @@ bool UDS::onRead(SESSION_t &sess)
 
     int bufSize = RECV_BUFFER_CAPACITY - sess.recvBufEnd;
 
-    // TODO: parse and process RCMP frame and signaling
+    // parse signaling from raw buffer
+    Document doc;
+    if (!parseSig(sess, doc))
+    {
+        ROS_ERROR("Err: socket[%d] parse signaling fail", sess.soc);
+        return false;
+    }
 
+    // TODO: process signaling
+
+    // adjust buffer pos variables
     if (sess.recvBufEnd == RECV_BUFFER_CAPACITY)
     {
         if (sess.recvBufPos == 0)
@@ -210,6 +222,33 @@ bool UDS::onWrite(SESSION_t &sess)
                       sess.soc, errno, strerror(errno));
             return false;
         }
+    }
+}
+
+bool UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
+{
+    char *rawBuf = sess.recvBuf + sess.recvBufPos;
+    int len = sess.recvBufEnd - sess.recvBufPos;
+
+    int nRet = mRcmp.parse(rawBuf, len, doc);
+    if (nRet != SUCCESS)
+    {
+        if (nRet == NEED_MORE_DATA)
+        {
+            // need more data
+            return true;
+        }
+        else
+        {
+            ROS_DEBUG("Debug: parse signaling fail: %d", nRet);
+            return false;
+        }
+    }
+
+    // adjust buffer pos
+    sess.recvBufPos += len;
+    if (sess.recvBufPos == sess.recvBufEnd) {
+        sess.recvBufPos = sess.recvBufEnd = 0;
     }
 }
 

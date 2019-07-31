@@ -9,6 +9,7 @@
 
 using namespace std;
 using namespace roscar::car::interface;
+using namespace roscar::car::roscar_common;
 
 void udsThreadFunc(const char *uri)
 {

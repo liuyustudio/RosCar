@@ -2,7 +2,7 @@ namespace roscar
 {
 namespace car
 {
-namespace interface
+namespace roscar_common
 {
 
 static const int SUCCESS = 0;
@@ -13,6 +13,6 @@ static const int ERROR = FAIL;
 static const int ERROR_INVALID = -10;
 static const int ERROR_UNSUPPORT = -11;
 
-} // namespace interface
+} // namespace roscar_common
 } // namespace car
 } // namespace roscar
