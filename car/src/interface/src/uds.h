@@ -43,8 +43,13 @@ protected:
     bool onSession(SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
-    bool parseSig(SESSION_t & sess, rapidjson::Document & doc);
+    bool parseSig(SESSION_t &sess, rapidjson::Document &doc);
 
+    bool onSignaling(SESSION_t &sess, rapidjson::Document &sig);
+    bool onSigPing(SESSION_t &sess, rapidjson::Document &sig);
+    bool onSigPong(SESSION_t &sess, rapidjson::Document &sig);
+
+    bool sendSignaling(SESSION_t &sess, rapidjson::StringBuffer &buffer);
     bool init();
     void teardown();
 
