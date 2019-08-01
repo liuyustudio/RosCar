@@ -25,6 +25,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    ROS_INFO("ROS Car Interface Ready.");
+
     Interface intf;
     UDS uds(intf);
 
