@@ -5,6 +5,7 @@
 
 #include "rapidjson/document.h"
 #include "rapidjson/schema.h"
+#include "rapidjson/stringbuffer.h"
 
 namespace roscar
 {
@@ -83,6 +84,13 @@ public:
      * return: corresponding error code
      */
     int parse(void *pBuf, int &len, rapidjson::Document &doc);
+
+    /**
+     * convert given signaling object to PONG signaling.
+     * 
+     * sig: in - original signaling; out - PONG signaling
+     */
+    void convertToPong(rapidjson::Document &sig);
 
 protected:
     rapidjson::SchemaDocument * mpSchema_Sig;

@@ -177,7 +177,7 @@ SchemaDocument *RCMP::loadSchema(const char *schema)
     return new SchemaDocument(doc);
 }
 
-int RCMP::parse(void *pBuf, int &len, rapidjson::Document &doc)
+int RCMP::parse(void *pBuf, int &len, Document &doc)
 {
     FRAME_t *pFrame = static_cast<FRAME_t *>(pBuf);
     int nRet = verifyFrame(pFrame, len);
@@ -212,6 +212,19 @@ int RCMP::parse(void *pBuf, int &len, rapidjson::Document &doc)
     }
 }
 
+void RCMP::convertToPong(Document &sig)
+{
+    auto &alloc = sig.GetAllocator();
+
+    sig["cmd"].SetString("PONG");
+    sig.AddMember("errno", 0, alloc);
+    sig.AddMember("errmsg", "", alloc);
+
+    // add 'empty' payload
+    rapidjson::Value payload(rapidjson::kNullType);
+    sig.AddMember("payload", payload, alloc);
+}
+
 int RCMP::verifyFrame(FRAME_t *pFrame, int len)
 {
     if (len < RCMP_FRAMEHEADSIZE)
@@ -243,7 +256,7 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
     return SUCCESS;
 }
 
-bool RCMP::verifySig(rapidjson::Document &doc)
+bool RCMP::verifySig(Document &doc)
 {
     if (!doc.Accept(*mpSchemaValidator_Sig))
     {
