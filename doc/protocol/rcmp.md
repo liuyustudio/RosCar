@@ -84,7 +84,7 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 {
   "cmd": "cmd id",
   "seq": 0,
-  "errno": "",
+  "errno": 0,
   "errmsg": "",
   "payload": null
 }
@@ -175,7 +175,7 @@ LoginResp 信令格式定义如下：
 {
   "cmd": "LoginResp",
   "seq": 0,
-  "errno": "",
+  "errno": 0,
   "errmsg": "",
   "payload": null
 }
@@ -207,7 +207,7 @@ LogoutResp 信令格式定义如下：
 {
   "cmd": "LogoutResp",
   "seq": 0,
-  "errno": "",
+  "errno": 0,
   "errmsg": "",
   "payload": null
 }
@@ -239,7 +239,7 @@ Pong 信令格式定义如下：
 {
   "cmd": "Pong",
   "seq": 0,
-  "errno": "",
+  "errno": 0,
   "errmsg": "",
   "payload": null
 }
@@ -271,7 +271,7 @@ CtlResp 信令格式定义如下：
 {
   "cmd": "CtlResp",
   "seq": 0,
-  "errno": "",
+  "errno": 0,
   "errmsg": "",
   "payload": null
 }
@@ -303,7 +303,7 @@ MtResp 信令格式定义如下：
 {
   "cmd": "MtResp",
   "seq": 0,
-  "errno": "",
+  "errno": 0,
   "errmsg": "",
   "payload": null
 }
@@ -335,7 +335,7 @@ ReportResp 信令格式定义如下：
 {
   "cmd": "ReportResp",
   "seq": 0,
-  "errno": "",
+  "errno": 0,
   "errmsg": "",
   "payload": null
 }
