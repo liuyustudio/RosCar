@@ -27,15 +27,22 @@ public:
     {
         int soc;
         unsigned int events;
-        int recvBufPos = 0;
-        int recvBufEnd = 0;
-        int sendBufPos = 0;
-        int sendBufEnd = 0;
+        unsigned int recvBufPos = 0;
+        unsigned int recvBufEnd = 0;
+        unsigned int sendBufPos = 0;
+        unsigned int sendBufEnd = 0;
         char recvBuf[RECV_BUFFER_CAPACITY];
         char sendBuf[SEND_BUFFER_CAPACITY];
     } SESSION_t;
 
-    UDS();
+    class SigCallback
+    {
+    public:
+        virtual bool onSignaling(SESSION_t &sess, rapidjson::Document &sig) = 0;
+    };
+
+    UDS(SigCallback &cb);
+    virtual ~UDS();
 
     void threadFunc();
 
@@ -45,11 +52,6 @@ protected:
     bool onWrite(SESSION_t &sess);
     bool parseSig(SESSION_t &sess, rapidjson::Document &doc);
 
-    bool onSignaling(SESSION_t &sess, rapidjson::Document &sig);
-    bool onSigPing(SESSION_t &sess, rapidjson::Document &sig);
-    bool onSigPong(SESSION_t &sess, rapidjson::Document &sig);
-
-    bool sendSignaling(SESSION_t &sess, rapidjson::StringBuffer &buffer);
     bool init();
     void teardown();
 
@@ -60,6 +62,7 @@ protected:
     int mEpollfd = 0;
     int mUdsSoc = 0;
 
+    SigCallback &mCb;
     roscar_common::RCMP mRcmp;
 };
 

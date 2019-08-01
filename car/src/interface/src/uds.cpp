@@ -8,14 +8,7 @@
 #include <sys/un.h>
 #include <sys/epoll.h>
 
-#include <vector>
-#include <map>
-#include <list>
-
-#include "rapidjson/writer.h"
-
 #include "roscar_common/error.h"
-#include "pilot/Info.h"
 
 using namespace std;
 using namespace rapidjson;
@@ -30,9 +23,15 @@ namespace interface
 
 const char *UDS::UDS_PATH = "/tmp/.roscar.car.interface.soc";
 
-UDS::UDS()
-    : mStopUDS(false)
+UDS::UDS(SigCallback &cb)
+    : mStopUDS(false), mCb(cb)
 {
+    init();
+}
+
+UDS::~UDS()
+{
+    teardown();
 }
 
 void UDS::threadFunc()
@@ -173,13 +172,13 @@ bool UDS::onRead(SESSION_t &sess)
     }
 
     // process signaling
-    if (!onSignaling(sess, doc))
+    if (!mCb.onSignaling(sess, doc))
     {
         ROS_ERROR("Err: socket[%d] process signaling fail", sess.soc);
         return false;
     }
 
-    // adjust buffer pos variables
+    // adjust recv buffer pos variables
     if (sess.recvBufEnd == RECV_BUFFER_CAPACITY)
     {
         if (sess.recvBufPos == 0)
@@ -195,14 +194,12 @@ bool UDS::onRead(SESSION_t &sess)
         }
     }
 
-    // any data need to be sent?
-    if (sess.sendBufPos != sess.sendBufEnd)
+    // are there data in send buffer?
+    if (sess.sendBufPos ^ sess.sendBufEnd)
     {
-        // there are data need to be sent
-
+        // set epoll write event for this socket
         if (0 == sess.events & EPOLLOUT)
         {
-            // set epoll write event for this socket
             sess.events |= EPOLLOUT;
 
             struct epoll_event event;
@@ -283,93 +280,8 @@ bool UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
     }
 }
 
-bool UDS::onSignaling(SESSION_t &sess, rapidjson::Document &sig)
-{
-    const char *cmd = sig[RCMP::FIELD_CMD].GetString();
-
-    if (strcasecmp(cmd, RCMP::SIG_LOGIN_RESP))
-    {
-        // In current version of code, skip signaling SIG_LOGIN_RESP.
-        ROS_DEBUG("Debug: In current version of code, skip signaling SIG_LOGIN_RESP.");
-        return true;
-    }
-    else if (strcasecmp(cmd, RCMP::SIG_PING))
-    {
-        return onSigPing(sess, sig);
-    }
-    else if (strcasecmp(cmd, RCMP::SIG_PONG))
-    {
-        return onSigPong(sess, sig);
-    }
-    else if (strcasecmp(cmd, RCMP::SIG_LOGIN))
-    {
-        // these signaling should not be received
-        ROS_ERROR("Err: wrong signaling(cmd: [%s]", cmd);
-        return false;
-    }
-
-    // unsupported singaling
-    ROS_ERROR("Err: unsupported signaling(cmd: [%s]", cmd);
-    return false;
-}
-
-bool UDS::onSigPing(SESSION_t &sess, rapidjson::Document &sig)
-{
-    mRcmp.convertToPong(sig);
-
-    StringBuffer buffer;
-    Writer<StringBuffer> writer(buffer);
-    sig.Accept(writer);
-    const char *payload = buffer.GetString();
-
-    // send signaling via append it to send buffer
-    return sendSignaling(sess, buffer);
-}
-
-bool UDS::onSigPong(SESSION_t &sess, rapidjson::Document &sig)
-{
-    // In current version of code, we just skip signaling PONG.
-    ROS_DEBUG("Debug: In current version of code, skip signaling PONG.");
-    return true;
-}
-
-bool UDS::sendSignaling(SESSION_t &sess, StringBuffer &buffer)
-{
-    auto len = buffer.GetSize();
-
-    // check empty send buffer size
-    if (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd < len)
-    {
-        if (sess.sendBufPos == 0)
-        {
-            // send buffer full
-            ROS_DEBUG("Debug: send buffer fulll(soc: [%d]", sess.soc);
-            return false;
-        }
-
-        // defrag buffer
-        int bufLen = sess.sendBufEnd - sess.sendBufPos;
-        memmove(sess.sendBuf, sess.sendBuf + sess.sendBufPos, bufLen);
-        sess.sendBufPos = 0;
-        sess.sendBufEnd = bufLen;
-
-        if (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd < len)
-        {
-            // buffer still full after defrag send buffer
-            ROS_DEBUG("Debug: send buffer fulll(soc: [%d]", sess.soc);
-            return false;
-        }
-    }
-
-    memcpy(sess.sendBuf + sess.sendBufEnd, buffer.GetString(), len);
-    sess.sendBufEnd += len;
-}
-
 bool UDS::init()
 {
-    // TODO: init ROS node service object
-    // mSrv_Info = mNh.serviceClient<pilot::Info>("info");
-
     // init epoll file descriptor
     if ((mEpollfd = epoll_create1(0)) < 0)
     {

@@ -136,6 +136,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(interface
+               src/main.cpp
                src/interface.cpp
                src/uds.cpp)
 
