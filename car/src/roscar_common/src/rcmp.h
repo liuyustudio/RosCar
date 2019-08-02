@@ -2,6 +2,7 @@
 #define _ROSCAR_CAR_ROSCARCOMMON_RCMP_H_
 
 #include <assert.h>
+#include <map>
 
 #include "rapidjson/document.h"
 #include "rapidjson/schema.h"
@@ -30,18 +31,15 @@ public:
     static const char *FIELD_LOGIN_TYPE;
     static const char *FIELD_LOGIN_ID;
 
+    static const char *SIGNALING;
     static const char *SIG_LOGIN;
     static const char *SIG_LOGIN_RESP;
     static const char *SIG_LOGOUT;
     static const char *SIG_LOGOUT_RESP;
     static const char *SIG_PING;
     static const char *SIG_PONG;
-    static const char *SIG_CONTROL;
-    static const char *SIG_CONTROL_RESP;
-    static const char *SIG_MT;
-    static const char *SIG_MT_RESP;
-    static const char *SIG_REPORT;
-    static const char *SIG_REPORT_RESP;
+    static const char *SIG_INFO;
+    static const char *SIG_INFO_RESP;
 
     static const char *SCHEMA_SIG;
     static const char *SCHEMA_SIG_LOGIN;
@@ -50,6 +48,8 @@ public:
     static const char *SCHEMA_SIG_LOGOUT_RESP;
     static const char *SCHEMA_SIG_PING;
     static const char *SCHEMA_SIG_PONG;
+    static const char *SCHEMA_SIG_INFO;
+    static const char *SCHEMA_SIG_INFO_RESP;
 
     typedef struct FRAME
     {
@@ -73,8 +73,6 @@ public:
     RCMP();
     virtual ~RCMP();
 
-    rapidjson::SchemaDocument * loadSchema(const char * schema);
-
     /**
      * parse RCMP signaling from given buffer
      * 
@@ -93,22 +91,10 @@ public:
     void convertToPong(rapidjson::Document &sig);
 
 protected:
-    rapidjson::SchemaDocument * mpSchema_Sig;
-    rapidjson::SchemaDocument * mpSchema_SigLogin;
-    rapidjson::SchemaDocument * mpSchema_SigLoginResp;
-    rapidjson::SchemaDocument * mpSchema_SigLogout;
-    rapidjson::SchemaDocument * mpSchema_SigLogoutResp;
-    rapidjson::SchemaDocument * mpSchema_SigPing;
-    rapidjson::SchemaDocument * mpSchema_SigPong;
+    std::map<const char *, rapidjson::SchemaDocument *> mSchemaMap;
+    std::map<const char *, rapidjson::SchemaValidator *> mValidatorMap;
 
-    rapidjson::SchemaValidator * mpSchemaValidator_Sig;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLogin;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLoginResp;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLogout;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLogoutResp;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigPing;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigPong;
-
+    void initSchemaValidator(const char * name, const char * schema);
     int verifyFrame(FRAME_t *pFrame, int len);
     bool verifySig(rapidjson::Document &doc);
 };

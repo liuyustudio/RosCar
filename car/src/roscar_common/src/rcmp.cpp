@@ -1,6 +1,7 @@
 #include "rcmp.h"
-#include <string>
 #include <exception>
+#include <sstream>
+#include <string>
 #include "const.h"
 #include "error.h"
 
@@ -21,18 +22,15 @@ const char *RCMP::FIELD_LOGIN_VER = "ver";
 const char *RCMP::FIELD_LOGIN_TYPE = "type";
 const char *RCMP::FIELD_LOGIN_ID = "id";
 
+const char *RCMP::SIGNALING = "Signaling";
 const char *RCMP::SIG_LOGIN = "Login";
 const char *RCMP::SIG_LOGIN_RESP = "LoginResp";
 const char *RCMP::SIG_LOGOUT = "Logout";
 const char *RCMP::SIG_LOGOUT_RESP = "LogoutResp";
 const char *RCMP::SIG_PING = "Ping";
 const char *RCMP::SIG_PONG = "Pong";
-const char *RCMP::SIG_CONTROL = "Ctl";
-const char *RCMP::SIG_CONTROL_RESP = "CtlResp";
-const char *RCMP::SIG_MT = "Mt";
-const char *RCMP::SIG_MT_RESP = "MtResp";
-const char *RCMP::SIG_REPORT = "Report";
-const char *RCMP::SIG_REPORT_RESP = "ReportResp";
+const char *RCMP::SIG_INFO = "Info";
+const char *RCMP::SIG_INFO_RESP = "InfoResp";
 
 const char *RCMP::SCHEMA_SIG = ""
                                "{"
@@ -42,8 +40,7 @@ const char *RCMP::SCHEMA_SIG = ""
                                "           \"type\":\"string\""
                                "       },"
                                "       \"seq\":{"
-                               "           \"type\":\"integer\","
-                               "           \"minimum\":0"
+                               "           \"type\":\"integer\""
                                "       }"
                                "   },"
                                "   \"required\":[\"cmd\",\"seq\"]"
@@ -57,15 +54,13 @@ const char *RCMP::SCHEMA_SIG_LOGIN = ""
                                      "           \"type\":\"string\""
                                      "       },"
                                      "       \"seq\":{"
-                                     "           \"type\":\"integer\","
-                                     "           \"minimum\":0"
+                                     "           \"type\":\"integer\""
                                      "       }"
                                      "       \"payload\":{"
                                      "          \"type\":\"object\","
                                      "          \"properties\":{"
                                      "              \"ver\":{"
-                                     "                  \"type\":\"integer\","
-                                     "                  \"minimum\":0"
+                                     "                  \"type\":\"integer\""
                                      "              },"
                                      "              \"type\":{"
                                      "                  \"type\":\"string\""
@@ -88,8 +83,7 @@ const char *RCMP::SCHEMA_SIG_LOGIN_RESP = ""
                                           "           \"type\":\"string\""
                                           "       },"
                                           "       \"seq\":{"
-                                          "           \"type\":\"integer\","
-                                          "           \"minimum\":0"
+                                          "           \"type\":\"integer\""
                                           "       },"
                                           "       \"errno\":{"
                                           "           \"type\":\"integer\""
@@ -112,8 +106,7 @@ const char *RCMP::SCHEMA_SIG_LOGOUT = ""
                                       "           \"type\":\"string\""
                                       "       },"
                                       "       \"seq\":{"
-                                      "           \"type\":\"integer\","
-                                      "           \"minimum\":0"
+                                      "           \"type\":\"integer\""
                                       "       }"
                                       "   },"
                                       "   \"required\":[\"cmd\",\"seq\"]"
@@ -122,59 +115,65 @@ const char *RCMP::SCHEMA_SIG_LOGOUT = ""
 const char *RCMP::SCHEMA_SIG_LOGOUT_RESP = RCMP::SCHEMA_SIG_LOGIN_RESP;
 
 const char *RCMP::SCHEMA_SIG_PING = RCMP::SCHEMA_SIG_LOGOUT;
-const char *RCMP::SCHEMA_SIG_PONG = RCMP::SCHEMA_SIG_LOGIN_RESP;
+const char *RCMP::SCHEMA_SIG_PONG = RCMP::SCHEMA_SIG_LOGOUT_RESP;
+
+const char *RCMP::SCHEMA_SIG_INFO = RCMP::SCHEMA_SIG_LOGOUT;
+const char *RCMP::SCHEMA_SIG_INFO_RESP = ""
+                                         "{"
+                                         "   \"type\":\"object\","
+                                         "   \"properties\":{"
+                                         "       \"cmd\":{"
+                                         "           \"type\":\"string\""
+                                         "       },"
+                                         "       \"seq\":{"
+                                         "           \"type\":\"integer\""
+                                         "       }"
+                                         "       \"payload\":{"
+                                         "          \"type\":\"object\","
+                                         "          \"properties\":{"
+                                         "              \"id\":{"
+                                         "                  \"type\":\"string\""
+                                         "              },"
+                                         "              \"type\":{"
+                                         "                  \"type\":\"string\""
+                                         "              },"
+                                         "              \"name\":{"
+                                         "                  \"type\":\"string\""
+                                         "              }"
+                                         "          },"
+                                         "          \"required\":[\"id\",\"type\",\"name\"]"
+                                         "       }"
+                                         "   },"
+                                         "   \"required\":[\"cmd\",\"seq\",\"payload\"]"
+                                         "}";
 
 RCMP::RCMP()
 {
-    // create schemas
-    mpSchema_Sig = loadSchema(SCHEMA_SIG);
-    mpSchema_SigLogin = loadSchema(SCHEMA_SIG_LOGIN);
-    mpSchema_SigLoginResp = loadSchema(SCHEMA_SIG_LOGIN_RESP);
-    mpSchema_SigLogout = loadSchema(SCHEMA_SIG_LOGOUT);
-    mpSchema_SigLogoutResp = loadSchema(SCHEMA_SIG_LOGOUT_RESP);
-    mpSchema_SigPing = loadSchema(SCHEMA_SIG_PING);
-    mpSchema_SigPong = loadSchema(SCHEMA_SIG_PONG);
-
-    // create validators
-    mpSchemaValidator_Sig = new SchemaValidator(*mpSchema_Sig);
-    mpSchemaValidator_SigLogin = new SchemaValidator(*mpSchema_SigLogin);
-    mpSchemaValidator_SigLoginResp = new SchemaValidator(*mpSchema_SigLoginResp);
-    mpSchemaValidator_SigLogout = new SchemaValidator(*mpSchema_SigLogout);
-    mpSchemaValidator_SigLogoutResp = new SchemaValidator(*mpSchema_SigLogoutResp);
-    mpSchemaValidator_SigPing = new SchemaValidator(*mpSchema_SigPing);
-    mpSchemaValidator_SigPong = new SchemaValidator(*mpSchema_SigPong);
+    // init schemas and validators
+    initSchemaValidator(SIGNALING, SCHEMA_SIG);
+    initSchemaValidator(SIG_LOGIN, SCHEMA_SIG_LOGIN);
+    initSchemaValidator(SIG_LOGIN_RESP, SCHEMA_SIG_LOGIN_RESP);
+    initSchemaValidator(SIG_LOGOUT, SCHEMA_SIG_LOGOUT);
+    initSchemaValidator(SIG_LOGOUT_RESP, SCHEMA_SIG_LOGOUT_RESP);
+    initSchemaValidator(SIG_PING, SCHEMA_SIG_PING);
+    initSchemaValidator(SIG_PONG, SCHEMA_SIG_PONG);
+    initSchemaValidator(SIG_INFO, SCHEMA_SIG_INFO);
+    initSchemaValidator(SIG_INFO_RESP, SCHEMA_SIG_INFO_RESP);
 }
 
 RCMP::~RCMP()
 {
     // release validators
-    delete mpSchemaValidator_Sig;
-    delete mpSchemaValidator_SigLogin;
-    delete mpSchemaValidator_SigLoginResp;
-    delete mpSchemaValidator_SigLogout;
-    delete mpSchemaValidator_SigLogoutResp;
-    delete mpSchemaValidator_SigPing;
-    delete mpSchemaValidator_SigPong;
-
-    // release schemas
-    delete mpSchema_Sig;
-    delete mpSchema_SigLogin;
-    delete mpSchema_SigLoginResp;
-    delete mpSchema_SigLogout;
-    delete mpSchema_SigLogoutResp;
-    delete mpSchema_SigPing;
-    delete mpSchema_SigPong;
-}
-
-SchemaDocument *RCMP::loadSchema(const char *schema)
-{
-    Document doc;
-    if (doc.Parse(SCHEMA_SIG).HasParseError())
+    for (auto item : mValidatorMap)
     {
-        throw invalid_argument((string("SCHEMA_SIG not valid: ") + schema));
+        delete item.second;
     }
 
-    return new SchemaDocument(doc);
+    // release schemas
+    for (auto item : mSchemaMap)
+    {
+        delete item.second;
+    }
 }
 
 int RCMP::parse(void *pBuf, int &len, Document &doc)
@@ -225,6 +224,22 @@ void RCMP::convertToPong(Document &sig)
     sig.AddMember("payload", payload, alloc);
 }
 
+void RCMP::initSchemaValidator(const char *name, const char *schema)
+{
+    Document doc;
+    if (doc.Parse(schema).HasParseError())
+    {
+        std::ostringstream stringStream;
+        stringStream << "schema[" << name << "] not valid: " << schema;
+        throw invalid_argument(stringStream.str());
+    }
+
+    // create schema & validators
+    SchemaDocument *pSchema = new SchemaDocument(doc);
+    mSchemaMap[name] = pSchema;
+    mValidatorMap[name] = new SchemaValidator(*pSchema);
+}
+
 int RCMP::verifyFrame(FRAME_t *pFrame, int len)
 {
     if (len < RCMP_FRAMEHEADSIZE)
@@ -258,64 +273,57 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
 
 bool RCMP::verifySig(Document &doc)
 {
-    if (!doc.Accept(*mpSchemaValidator_Sig))
+    // check signaling's basic format
+    if (!doc.Accept(*mValidatorMap[SIGNALING]))
     {
         // invalid format
         return ERROR_INVALID;
     }
 
+    const char * sigCmd = NULL;
+
     // login
-    if (strcmp(doc[FIELD_CMD].GetString(), SIG_LOGIN) == 0)
+    if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGIN) == 0)
     {
-        if (!doc.Accept(*mpSchemaValidator_SigLogin))
-        {
-            return ERROR_INVALID;
-        }
+        sigCmd = SIG_LOGIN;
     }
     // login resp
-    else if (strcmp(doc[FIELD_CMD].GetString(), SIG_LOGIN_RESP) == 0)
+    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGIN_RESP) == 0)
     {
-        if (!doc.Accept(*mpSchemaValidator_SigLoginResp))
-        {
-            return ERROR_INVALID;
-        }
+        sigCmd = SIG_LOGIN_RESP;
     }
 
     // logout
-    else if (strcmp(doc[FIELD_CMD].GetString(), SIG_LOGOUT) == 0)
+    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGOUT) == 0)
     {
-        if (!doc.Accept(*mpSchemaValidator_SigLogout))
-        {
-            return ERROR_INVALID;
-        }
+        sigCmd = SIG_LOGOUT;
     }
     // logout resp
-    else if (strcmp(doc[FIELD_CMD].GetString(), SIG_LOGOUT_RESP) == 0)
+    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGOUT_RESP) == 0)
     {
-        if (!doc.Accept(*mpSchemaValidator_SigLogoutResp))
-        {
-            return ERROR_INVALID;
-        }
+        sigCmd = SIG_LOGOUT_RESP;
     }
 
     // ping
-    else if (strcmp(doc[FIELD_CMD].GetString(), SIG_PING) == 0)
+    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_PING) == 0)
     {
-        if (!doc.Accept(*mpSchemaValidator_SigPing))
-        {
-            return ERROR_INVALID;
-        }
+        sigCmd = SIG_PING;
     }
     // pong resp
-    else if (strcmp(doc[FIELD_CMD].GetString(), SIG_PONG) == 0)
+    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_PONG) == 0)
     {
-        if (!doc.Accept(*mpSchemaValidator_SigPong))
-        {
-            return ERROR_INVALID;
-        }
+        sigCmd = SIG_PONG;
     }
 
-    return SUCCESS;
+    if (sigCmd)
+    {
+        return doc.Accept(*mValidatorMap[sigCmd]) ? SUCCESS : ERROR_INVALID;
+    }
+    else
+    {
+        // unknown signaling cmd
+        return ERROR;
+    }
 }
 
 } // namespace roscar_common
