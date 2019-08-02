@@ -1,3 +1,6 @@
+#ifndef _ROSCAR_CAR_ROSCARCOMMON_ERROR_H_
+#define _ROSCAR_CAR_ROSCARCOMMON_ERROR_H_
+
 namespace roscar
 {
 namespace car
@@ -16,3 +19,5 @@ static const int ERROR_UNSUPPORT = -11;
 } // namespace roscar_common
 } // namespace car
 } // namespace roscar
+
+#endif // _ROSCAR_CAR_ROSCARCOMMON_ERROR_H_

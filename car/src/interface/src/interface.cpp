@@ -3,6 +3,7 @@
 #include "rapidjson/writer.h"
 
 #include "roscar_common/rcmp.h"
+#include "pilot/Info.h"
 
 using namespace std;
 using namespace rapidjson;
@@ -15,21 +16,24 @@ namespace car
 namespace interface
 {
 
-std::map<const char *, Interface::FUNC_ONSIG> Interface::mSigFuncMap;
+std::map<const char *, Interface::FUNC_ONSIG> Interface::gSigFuncMap;
+ros::ServiceClient Interface::gSvrInfo;
 
-void Interface::init()
+void Interface::init(ros::NodeHandle &nh)
 {
-    mSigFuncMap[RCMP::SIG_PING] = &onSigPing;
-    mSigFuncMap[RCMP::SIG_PONG] = &onSigPong;
-    mSigFuncMap[RCMP::SIG_INFO] = &onSigInfo;
+    gSigFuncMap[RCMP::SIG_PING] = &onSigPing;
+    gSigFuncMap[RCMP::SIG_PONG] = &onSigPong;
+    gSigFuncMap[RCMP::SIG_INFO] = &onSigInfo;
+
+    gSvrInfo = nh.serviceClient<pilot::Info>("info");
 }
 
 bool Interface::onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
     const char *cmd = sig[RCMP::FIELD_CMD].GetString();
 
-    auto onSigFuncPare = mSigFuncMap.find(cmd);
-    if (onSigFuncPare == mSigFuncMap.end())
+    auto onSigFuncPare = gSigFuncMap.find(cmd);
+    if (onSigFuncPare == gSigFuncMap.end())
     {
         // unsupported signaling
         ROS_ERROR("Err: unsupported signaling(cmd: [%s])", cmd);
@@ -42,7 +46,7 @@ bool Interface::onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
 
 bool Interface::onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    return sendSignaling(sess, RCMP::convertToPong(sig));
+    return sendSignaling(sess, RCMP::convertToResp(sig));
 }
 
 bool Interface::onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig)
@@ -53,8 +57,26 @@ bool Interface::onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig)
 
 bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    // TODO: ...
-    return false;
+    pilot::Info info;
+    if (!gSvrInfo.call(info))
+    {
+        ROS_ERROR("Fail to call service: [pilot::Info]");
+        return false;
+    }
+
+    auto &alloc = sig.GetAllocator();
+    Value payload(kObjectType);
+    payload.AddMember(Value::StringRefType(RCMP::FIELD_INFORESP_ID),
+                      Value::StringRefType(info.response.id.c_str()),
+                      alloc);
+    payload.AddMember(Value::StringRefType(RCMP::FIELD_INFORESP_TYPE),
+                      Value::StringRefType(info.response.type.c_str()),
+                      alloc);
+    payload.AddMember(Value::StringRefType(RCMP::FIELD_INFORESP_NAME),
+                      Value::StringRefType(info.response.name.c_str()),
+                      alloc);
+
+    return sendSignaling(sess, RCMP::convertToResp(sig, &payload));
 }
 
 bool Interface::sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)

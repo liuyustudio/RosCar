@@ -3,6 +3,7 @@
 
 #include <map>
 #include "rapidjson/document.h"
+#include "ros/ros.h"
 #include "uds.h"
 
 namespace roscar
@@ -24,7 +25,7 @@ public:
     static bool onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
     // init Interface runtime environment
-    static void init();
+    static void init(ros::NodeHandle &nh);
 
 protected:
     static bool onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig);
@@ -33,7 +34,8 @@ protected:
 
     static bool sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
-    static std::map<const char *, FUNC_ONSIG> mSigFuncMap;
+    static std::map<const char *, FUNC_ONSIG> gSigFuncMap;
+    static ros::ServiceClient gSvrInfo;
 };
 
 } // namespace interface

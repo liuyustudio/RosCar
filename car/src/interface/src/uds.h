@@ -1,7 +1,6 @@
 #ifndef _ROSCAR_CAR_INTERFACE_UDS_H_
 #define _ROSCAR_CAR_INTERFACE_UDS_H_
 
-#include "ros/ros.h"
 #include "rapidjson/document.h"
 #include "roscar_common/rcmp.h"
 
@@ -51,15 +50,11 @@ protected:
     bool init();
     void teardown();
 
-    ros::NodeHandle mNh;
-    ros::ServiceClient mSrv_Info;
-
     bool mStopUDS;
     int mEpollfd = 0;
     int mUdsSoc = 0;
 
     FUNC_ONSIGLAING mCb_OnSig;
-    roscar_common::RCMP mRcmp;
 };
 
 } // namespace interface

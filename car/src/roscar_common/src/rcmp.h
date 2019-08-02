@@ -8,6 +8,8 @@
 #include "rapidjson/schema.h"
 #include "rapidjson/stringbuffer.h"
 
+#include "roscar_common/error.h"
+
 namespace roscar
 {
 namespace car
@@ -26,10 +28,15 @@ public:
 
     static const char *FIELD_CMD;
     static const char *FIELD_SEQ;
+    static const char *FIELD_ERRNO;
+    static const char *FIELD_ERRMSG;
     static const char *FIELD_PAYLOAD;
     static const char *FIELD_LOGIN_VER;
     static const char *FIELD_LOGIN_TYPE;
     static const char *FIELD_LOGIN_ID;
+    static const char *FIELD_INFORESP_ID;
+    static const char *FIELD_INFORESP_TYPE;
+    static const char *FIELD_INFORESP_NAME;
 
     static const char *SIGNALING;
     static const char *SIG_LOGIN;
@@ -70,8 +77,11 @@ public:
         }
     } FRAME_t;
 
-    RCMP();
-    virtual ~RCMP();
+    class Initializer
+    {
+    public:
+        Initializer();
+    };
 
     /**
      * parse RCMP signaling from given buffer
@@ -81,24 +91,48 @@ public:
      * 
      * return: corresponding error code
      */
-    int parse(void *pBuf, int &len, rapidjson::Document &doc);
+    static int parse(void *pBuf, int &len, rapidjson::Document &doc);
 
     /**
-     * convert given signaling object to PONG signaling.
+     * give request cmd and retrive corresponding resp cmd
      * 
-     * sig: in - original signaling; out - PONG signaling
+     * cmd: request cmd
      * 
-     * return: reference of input sig object.
+     * return: corresponding resp cmd if it has be found; otherwise nullptr 
      */
-    static rapidjson::Document & convertToPong(rapidjson::Document &sig);
+    static const char *getRespCmd(const char *cmd);
+
+    /**
+     * convert given request signaling object to corresponding response signaling.
+     * 
+     * sig: in - request signaling; out - corresponding response signaling
+     * err: error number
+     * errmsg: error description
+     * payload: payload of response signaling
+     * 
+     * return: response signaling object(same as request signaling object).
+     */
+    static rapidjson::Document &convertToResp(rapidjson::Document &sig,
+                                              const int err,
+                                              const char *errmsg,
+                                              rapidjson::Value *payload = nullptr);
+    static rapidjson::Document &convertToResp(rapidjson::Document &sig,
+                                              rapidjson::Value *payload = nullptr)
+    {
+        convertToResp(sig, SUCCESS, "", payload);
+    }
 
 protected:
-    std::map<const char *, rapidjson::SchemaDocument *> mSchemaMap;
-    std::map<const char *, rapidjson::SchemaValidator *> mValidatorMap;
+    static Initializer gInitializer;
+    static std::map<const char *, const char *> gSigRespCmdMap;
 
-    void initSchemaValidator(const char * name, const char * schema);
-    int verifyFrame(FRAME_t *pFrame, int len);
-    bool verifySig(rapidjson::Document &doc);
+    static std::map<const char *, rapidjson::SchemaDocument *> gSchemaMap;
+    static std::map<const char *, rapidjson::SchemaValidator *> gValidatorMap;
+
+    static void init();
+    static void initSchemaValidator(const char *name, const char *schema);
+    static int verifyFrame(FRAME_t *pFrame, int len);
+    static bool verifySig(rapidjson::Document &doc);
 };
 
 } // namespace roscar_common

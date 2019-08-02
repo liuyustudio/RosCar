@@ -2,8 +2,8 @@
 #include <cstdlib>
 #include <string>
 #include <thread>
-#include "ros/ros.h"
 
+#include "ros/ros.h"
 #include "interface.h"
 #include "uds.h"
 
@@ -25,9 +25,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    ros::NodeHandle nh;
     ROS_INFO("ROS Car Interface Ready.");
 
-    Interface::init();
+    Interface::init(nh);
     UDS uds(Interface::onSignaling);
 
     thread udsThread = thread(&UDS::threadFunc, &uds);

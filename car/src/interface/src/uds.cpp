@@ -8,6 +8,7 @@
 #include <sys/un.h>
 #include <sys/epoll.h>
 
+#include "ros/ros.h"
 #include "roscar_common/error.h"
 
 using namespace std;
@@ -257,7 +258,7 @@ bool UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
     char *rawBuf = sess.recvBuf + sess.recvBufPos;
     int len = sess.recvBufEnd - sess.recvBufPos;
 
-    int nRet = mRcmp.parse(rawBuf, len, doc);
+    int nRet = RCMP::parse(rawBuf, len, doc);
     if (nRet != SUCCESS)
     {
         if (nRet == NEED_MORE_DATA)
