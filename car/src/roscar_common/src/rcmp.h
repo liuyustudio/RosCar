@@ -87,8 +87,10 @@ public:
      * convert given signaling object to PONG signaling.
      * 
      * sig: in - original signaling; out - PONG signaling
+     * 
+     * return: reference of input sig object.
      */
-    void convertToPong(rapidjson::Document &sig);
+    static rapidjson::Document & convertToPong(rapidjson::Document &sig);
 
 protected:
     std::map<const char *, rapidjson::SchemaDocument *> mSchemaMap;

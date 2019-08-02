@@ -211,7 +211,7 @@ int RCMP::parse(void *pBuf, int &len, Document &doc)
     }
 }
 
-void RCMP::convertToPong(Document &sig)
+Document & RCMP::convertToPong(Document &sig)
 {
     auto &alloc = sig.GetAllocator();
 
@@ -222,6 +222,8 @@ void RCMP::convertToPong(Document &sig)
     // add 'empty' payload
     rapidjson::Value payload(rapidjson::kNullType);
     sig.AddMember("payload", payload, alloc);
+
+    return sig;
 }
 
 void RCMP::initSchemaValidator(const char *name, const char *schema)

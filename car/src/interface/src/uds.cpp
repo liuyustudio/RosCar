@@ -23,8 +23,8 @@ namespace interface
 
 const char *UDS::UDS_PATH = "/tmp/.roscar.car.interface.soc";
 
-UDS::UDS(SigCallback &cb)
-    : mStopUDS(false), mCb(cb)
+UDS::UDS(FUNC_ONSIGLAING cb_onSig)
+    : mStopUDS(false), mCb_OnSig(cb_onSig)
 {
     init();
 }
@@ -172,7 +172,7 @@ bool UDS::onRead(SESSION_t &sess)
     }
 
     // process signaling
-    if (!mCb.onSignaling(sess, doc))
+    if (!mCb_OnSig(sess, doc))
     {
         ROS_ERROR("Err: socket[%d] process signaling fail", sess.soc);
         return false;

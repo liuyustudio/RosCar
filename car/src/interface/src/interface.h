@@ -1,8 +1,8 @@
 #ifndef _ROSCAR_CAR_INTERFACE_INTERFACE_H_
 #define _ROSCAR_CAR_INTERFACE_INTERFACE_H_
 
+#include <map>
 #include "rapidjson/document.h"
-#include "roscar_common/rcmp.h"
 #include "uds.h"
 
 namespace roscar
@@ -12,19 +12,28 @@ namespace car
 namespace interface
 {
 
-class Interface : public UDS::SigCallback
+class Interface
 {
+protected:
+    typedef bool (*FUNC_ONSIG)(UDS::SESSION_t &sess, rapidjson::Document &sig);
+
+    Interface(){};
+
 public:
     // overide
-    bool onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
+
+    // init Interface runtime environment
+    static void init();
 
 protected:
-    bool onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig);
-    bool onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
-    bool sendSignaling(UDS::SESSION_t &sess, rapidjson::StringBuffer &buffer);
+    static bool sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
-    roscar_common::RCMP mRcmp;
+    static std::map<const char *, FUNC_ONSIG> mSigFuncMap;
 };
 
 } // namespace interface

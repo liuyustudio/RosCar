@@ -27,8 +27,8 @@ int main(int argc, char **argv)
 
     ROS_INFO("ROS Car Interface Ready.");
 
-    Interface intf;
-    UDS uds(intf);
+    Interface::init();
+    UDS uds(Interface::onSignaling);
 
     thread udsThread = thread(&UDS::threadFunc, &uds);
     udsThread.join();

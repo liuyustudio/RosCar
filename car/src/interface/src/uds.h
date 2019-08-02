@@ -35,13 +35,9 @@ public:
         char sendBuf[SEND_BUFFER_CAPACITY];
     } SESSION_t;
 
-    class SigCallback
-    {
-    public:
-        virtual bool onSignaling(SESSION_t &sess, rapidjson::Document &sig) = 0;
-    };
+    typedef bool (*FUNC_ONSIGLAING)(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
-    UDS(SigCallback &cb);
+    UDS(FUNC_ONSIGLAING cb_onSig);
     virtual ~UDS();
 
     void threadFunc();
@@ -62,7 +58,7 @@ protected:
     int mEpollfd = 0;
     int mUdsSoc = 0;
 
-    SigCallback &mCb;
+    FUNC_ONSIGLAING mCb_OnSig;
     roscar_common::RCMP mRcmp;
 };
 
