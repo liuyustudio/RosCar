@@ -18,6 +18,12 @@
 
 ## Compile & Link
 
+- catkin_make
+
+  ```sh
+  roscd && cd .. && catkin_make
+  ```
+
 - g++
 
   ```sh

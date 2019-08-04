@@ -6,6 +6,9 @@ RUN apt-get upgrade -y
 RUN apt-get install -y ros-kinetic-common-tutorials \
         ros-kinetic-ros-tutorials
 
+# install GUN's readline library
+RUN apt-get install libreadline-dev -y
+
 # install rapid json
 ADD https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz /tmp
 RUN cd /tmp && \
