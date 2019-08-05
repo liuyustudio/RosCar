@@ -47,16 +47,16 @@ int main(int argc, char **argv)
 
 bool process(const char *line)
 {
-    vector<string> elements;
+    vector<string> cmd;
     stringstream ss(line);
     string item;
 
     while (ss >> item)
     {
-        elements.push_back(item);
+        cmd.push_back(item);
     }
 
-    if (strcasecmp(elements[0].c_str(), "info") == 0)
+    if (strcasecmp(cmd[0].c_str(), "info") == 0)
     {
         printf("Info command: %s\n", line);
     }
