@@ -1,11 +1,10 @@
-#ifndef ROSCAR_CAR_CLI_CLI
-#define ROSCAR_CAR_CLI_CLI
+#ifndef _ROSCAR_CAR_CLI_CLI
+#define _ROSCAR_CAR_CLI_CLI
 
 #include <list>
 #include <string>
 #include <vector>
 #include <thread>
-#include <chrono>
 #include <mutex>
 #include <condition_variable>
 
@@ -18,7 +17,7 @@ namespace cli
 
 class Cli
 {
-    static const std::chrono::milliseconds THREAD_WAIT_TIMEOUT;
+    static const char * UNIX_DOMAIN_SOCKET_URI;
 
 public:
     Cli();
@@ -26,12 +25,8 @@ public:
 
     /**
      * @brief init Cli object
-     * 
-     * @param udsUri: URI of Unix Domain Socket
-     * @return true: if init ok
-     * @return false: if init fail
      */
-    bool init(const char *udsUri);
+    void init();
 
     /**
      * @brief process new input command
@@ -46,11 +41,11 @@ protected:
     std::mutex mCvMutex;
     std::condition_variable mCv;
     std::list<std::string> mReqList;
-
-    // std::thread mThread;
+    std::vector<std::thread> mThreadArray;
     bool mStop;
+    int mUdsFd;
 
-    void threadFunc();
+    void udsThreadFunc();
 
     void sendRequest(std::string &req);
     bool onCmd_Info(std::vector<std::string> &cmd);
@@ -60,4 +55,4 @@ protected:
 } // namespace car
 } // namespace roscar
 
-#endif // ROSCAR_CAR_CLI_CLI
+#endif // _ROSCAR_CAR_CLI_CLI

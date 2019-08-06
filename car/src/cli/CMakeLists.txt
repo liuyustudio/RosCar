@@ -133,7 +133,8 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}
                src/main.cpp
-               src/cli.cpp)
+               src/cli.cpp
+               src/udsClient.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
