@@ -122,6 +122,14 @@ public:
         convertToResp(sig, SUCCESS, "", payload);
     }
 
+    /**
+     * @brief Get the Json string from given signaling object
+     * 
+     * @param sig: valid signaling object
+     * @return std::string: corresponding Json string 
+     */
+    static std::string getJson(rapidjson::Document & sig);
+
 protected:
     static Initializer gInitializer;
     static std::map<const char *, const char *> gSigRespCmdMap;

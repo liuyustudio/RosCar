@@ -2,6 +2,7 @@
 #include <exception>
 #include <sstream>
 #include <string>
+#include "rapidjson/writer.h"
 #include "const.h"
 #include "error.h"
 
@@ -248,6 +249,15 @@ Document &RCMP::convertToResp(rapidjson::Document &sig,
     }
 
     return sig;
+}
+
+string RCMP::getJson(rapidjson::Document & sig) {
+    // convert signaling object to json string
+    StringBuffer buffer;
+    Writer<StringBuffer> writer(buffer);
+    sig.Accept(writer);
+
+    return buffer.GetString();
 }
 
 void RCMP::init()
