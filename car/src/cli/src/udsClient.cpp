@@ -10,6 +10,7 @@
 
 #include "ros/ros.h"
 #include "roscar_common/error.h"
+#include "roscar_common/rcmp.h"
 
 using namespace std;
 using namespace rapidjson;
@@ -22,43 +23,118 @@ namespace car
 namespace cli
 {
 
-const char *UDSClient::UDS_PATH = "/tmp/.roscar.car.interface.soc";
+const char *UDSClient::UNIX_DOMAIN_SOCKET_URI = "/tmp/.roscar.car.interface.soc";
 
 UDSClient::UDSClient(FUNC_ONSIGLAING cb_onSig)
     : mStopUDS(false), mCb_OnSig(cb_onSig)
 {
-    init();
 }
 
 UDSClient::~UDSClient()
 {
-    teardown();
+    stop();
 }
 
-void UDSClient::sendRawString(std::string &reqString)
+bool UDSClient::start(const char *udsUri)
 {
-    // TODO: ...
+    // init epoll file descriptor
+    if ((mEpollfd = epoll_create1(0)) < 0)
+    {
+        printf("Err: Failed to create epoll. Error[%d]: %s\n",
+               errno, strerror(errno));
+        return false;
+    }
+
+    // init Unix Domain Socket
+    {
+        // create socket
+        printf("Debug: connect to Unix Domain Socket: %s", udsUri);
+        if ((mUdsSoc = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+        {
+            printf("Err: Fail to create socket. Error[%d]: %s\n",
+                   errno, strerror(errno));
+            return false;
+        }
+
+        // connect
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, UNIX_DOMAIN_SOCKET_URI, sizeof(addr.sun_path) - 1);
+        if (connect(mUdsSoc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
+            printf("Err: Fail to connect to UDS[%s]. Error[%d]: %s\n",
+                   udsUri, errno, strerror(errno));
+            close(mUdsSoc);
+            mUdsSoc = 0;
+            return false;
+        }
+    }
+
+    // start threads
+    mThreadArray.emplace_back(&UDSClient::threadFunc, this);
 }
 
-void UDSClient::sendSig(rapidjson::Document &sig)
+void UDSClient::stop()
 {
-    // TODO: ...
+    // stop threads
+    mStopUDS = true;
+    for (auto &t : mThreadArray)
+    {
+        t.join();
+    }
+
+    // close epoll file descriptor
+    if (mEpollfd)
+    {
+        if (close(mEpollfd))
+        {
+            printf("Err: Fail to close epoll. Error[%d]: %s\n",
+                   errno, strerror(errno));
+        }
+        mEpollfd = 0;
+    }
+
+    // close Unix Domain Socket
+    if (mUdsSoc)
+    {
+        if (close(mUdsSoc))
+        {
+            printf("Err: Fail to close Unix Domain Socket. Error[%d]: %s\n",
+                   errno, strerror(errno));
+        }
+        mUdsSoc = 0;
+    }
+}
+
+void UDSClient::sendRawString(std::string &req)
+{
+    lock_guard<mutex> lock(mReqStrListMutex);
+    mReqStrList.push_back(req);
+}
+
+void UDSClient::sendSig(rapidjson::Document &req)
+{
+    string json = RCMP::getJson(req);
+    sendRawString(json);
 }
 
 void UDSClient::threadFunc()
 {
     printf("Debug: init UDSClient thread");
-    map<int, SESSION_t> soc2Sess;
 
-    int soc;
     int ret;
     SESSION_t sess;
+    list<string> reqList;
+
+    sess.soc = mUdsSoc;
+    sess.events = EPOLLIN;
 
     struct epoll_event event;
     struct epoll_event events[MAX_CLIENT_COUNT];
 
-    event.events = EPOLLIN;
-    event.data.fd = mUdsSoc;
+    event.events = sess.events;
+    event.data.fd = sess.soc;
     if (epoll_ctl(mEpollfd, EPOLL_CTL_ADD, mUdsSoc, &event))
     {
         printf("Err: Failed to add DUS fd to epoll. Error[%d]: %s\n",
@@ -86,28 +162,55 @@ void UDSClient::threadFunc()
             }
         }
 
-        for (int i = 0; i < ret; ++i)
+        if (mReqStrListMutex.try_lock())
         {
-            assert (events[i].data.fd == mUdsSoc);
-            {
-                // client socket
-                soc = events[i].data.fd;
-                SESSION_t &sess = soc2Sess[soc];
-                sess.events = events[i].events;
+            reqList.swap(mReqStrList);
+            mReqStrList.clear();
+            mReqStrListMutex.unlock();
+        }
+        if (!reqList.empty()) {
 
-                if (!onSoc(sess))
-                {
-                    printf("Debug: Remove socket[%d]\n", soc);
+            // TODO: put req string into list
 
-                    // unbind client socket and session
-                    soc2Sess.erase(soc);
-                    // remove socket from epoll
-                    epoll_ctl(mEpollfd, EPOLL_CTL_DEL, soc, NULL);
-                }
-            }
+            // // set epoll write event for this socket
+            // if (0 == sess.events & EPOLLOUT)
+            // {
+            //     sess.events |= EPOLLOUT;
+
+            //     struct epoll_event event;
+            //     event.data.fd = sess.soc;
+            //     event.events = sess.events;
+            //     if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
+            //     {
+            //         printf("Err: Failed to add poll-out event for client[%d]. Error[%d]: %s\n",
+            //             sess.soc, errno, strerror(errno));
+            //         return false;
+            //     }
+            // }
         }
 
-        // TODO: send sig
+        if (ret == 0)
+        {
+            // timeout
+        }
+        else
+        {
+            assert(events[0].data.fd == mUdsSoc);
+
+            // client socket
+            sess.events = events[0].events;
+
+            if (!onSoc(sess))
+            {
+                printf("Debug: Remove socket[%d]\n", mUdsSoc);
+
+                // remove socket from epoll
+                epoll_ctl(mEpollfd, EPOLL_CTL_DEL, mUdsSoc, NULL);
+
+                // quit thread
+                break;
+            }
+        }
     }
 
     printf("Debug: UDSClient thread stop\n");
@@ -115,6 +218,9 @@ void UDSClient::threadFunc()
 
 bool UDSClient::onSoc(SESSION_t &sess)
 {
+
+    // TODO: send sig
+
     if (sess.events & EPOLLIN)
     {
         // available for read
@@ -147,11 +253,11 @@ bool UDSClient::onRead(SESSION_t &sess)
 
     int bufSize = RECV_BUFFER_CAPACITY - sess.recvBufEnd;
 
-    // parse signaling from raw buffer
+    // get signaling from raw buffer
     Document doc;
-    if (!parseSig(sess, doc))
+    if (!parseRawBuffer(sess, doc))
     {
-        printf("Err: socket[%d] parse signaling fail\n", sess.soc);
+        printf("Err: socket[%d] get signaling fail\n", sess.soc);
         return false;
     }
 
@@ -236,7 +342,7 @@ bool UDSClient::onWrite(SESSION_t &sess)
     }
 }
 
-bool UDSClient::parseSig(SESSION_t &sess, rapidjson::Document &doc)
+bool UDSClient::parseRawBuffer(SESSION_t &sess, rapidjson::Document &doc)
 {
     char *rawBuf = sess.recvBuf + sess.recvBufPos;
     int len = sess.recvBufEnd - sess.recvBufPos;
@@ -261,73 +367,6 @@ bool UDSClient::parseSig(SESSION_t &sess, rapidjson::Document &doc)
     if (sess.recvBufPos == sess.recvBufEnd)
     {
         sess.recvBufPos = sess.recvBufEnd = 0;
-    }
-}
-
-bool UDSClient::init()
-{
-    // init epoll file descriptor
-    if ((mEpollfd = epoll_create1(0)) < 0)
-    {
-        printf("Err: Failed to create epoll. Error[%d]: %s\n",
-               errno, strerror(errno));
-        return false;
-    }
-
-    // init Unix Domain Socket
-    {
-        printf("Debug: init Unix Domain Socket: %s", UDS_PATH);
-        if ((mUdsSoc = socket(AF_UNIX, SOCK_STREAM, 0)) <= 0)
-        {
-            printf("Err: Fail to create socket. Error[%d]: %s\n",
-                   errno, strerror(errno));
-            return false;
-        }
-
-        struct sockaddr_un addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, UDS_PATH, sizeof(addr.sun_path) - 1);
-        unlink(UDS_PATH);
-
-        if (bind(mUdsSoc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-        {
-            printf("Err: Fail to bind[%s]. Error[%d]: %s\n",
-                   UDS_PATH, errno, strerror(errno));
-            return false;
-        }
-
-        if (listen(mUdsSoc, SOMAXCONN) == -1)
-        {
-            printf("Err: Listen fail. Error[%d]: %s\n",
-                   errno, strerror(errno));
-            return false;
-        }
-    }
-}
-
-void UDSClient::teardown()
-{
-    // close epoll file descriptor
-    if (mEpollfd)
-    {
-        if (close(mEpollfd))
-        {
-            printf("Err: Fail to close epoll. Error[%d]: %s\n",
-                   errno, strerror(errno));
-        }
-        mEpollfd = 0;
-    }
-
-    // close Unix Domain Socket
-    if (mUdsSoc)
-    {
-        if (close(mUdsSoc))
-        {
-            printf("Err: Fail to close Unix Domain Socket. Error[%d]: %s\n",
-                   errno, strerror(errno));
-        }
-        mUdsSoc = 0;
     }
 }
 

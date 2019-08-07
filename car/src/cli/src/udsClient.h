@@ -1,6 +1,11 @@
 #ifndef _ROSCAR_CAR_CLI_UDS_H_
 #define _ROSCAR_CAR_CLI_UDS_H_
 
+#include <mutex>
+#include <thread>
+#include <string>
+#include <list>
+#include <vector>
 #include "rapidjson/document.h"
 #include "roscar_common/rcmp.h"
 
@@ -18,9 +23,9 @@ public:
     static const int EPOLL_RETRY_INTERVAL = 1 * 100 * 1000;
     static const int EPOLL_MAX_EVENTS = 16;
     static const int MAX_CLIENT_COUNT = 8;
-    static const int RECV_BUFFER_CAPACITY = 64 * 1024;
-    static const int SEND_BUFFER_CAPACITY = 64 * 1024;
-    static const char *UDS_PATH;
+    static const int RECV_BUFFER_CAPACITY = 8 * 1024;
+    static const int SEND_BUFFER_CAPACITY = 8 * 1024;
+    static const char *UNIX_DOMAIN_SOCKET_URI;
 
     typedef struct SESSION
     {
@@ -39,23 +44,27 @@ public:
     UDSClient(FUNC_ONSIGLAING cb_onSig);
     virtual ~UDSClient();
 
-    void sendRawString(std::string &reqString);
-    void sendSig(rapidjson::Document &sig);
+    bool start(const char * udsUri);
+    void stop();
 
-    void threadFunc();
+    void sendRawString(std::string &req);
+    void sendSig(rapidjson::Document &req);
 
 protected:
+    void threadFunc();
+
     bool onSoc(SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
-    bool parseSig(SESSION_t &sess, rapidjson::Document &doc);
+    bool parseRawBuffer(SESSION_t &sess, rapidjson::Document &doc);
 
-    bool init();
-    void teardown();
-
+    std::vector<std::thread> mThreadArray;
     bool mStopUDS;
     int mEpollfd = 0;
     int mUdsSoc = 0;
+
+    std::mutex mReqStrListMutex;
+    std::list<std::string> mReqStrList;
 
     FUNC_ONSIGLAING mCb_OnSig;
 };
