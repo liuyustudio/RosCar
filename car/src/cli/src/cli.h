@@ -1,12 +1,9 @@
 #ifndef _ROSCAR_CAR_CLI_CLI
 #define _ROSCAR_CAR_CLI_CLI
 
-#include <list>
 #include <string>
 #include <vector>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
+#include "udsClient.h"
 
 namespace roscar
 {
@@ -17,16 +14,11 @@ namespace cli
 
 class Cli
 {
-    static const char * UNIX_DOMAIN_SOCKET_URI;
-
 public:
-    Cli();
-    virtual ~Cli();
+    typedef bool (*FUNC_SEND_SIGNALING)(std::string &sig);
 
-    /**
-     * @brief init Cli object
-     */
-    void init();
+    Cli(FUNC_SEND_SIGNALING func) : sendSig(func){};
+    virtual ~Cli() = default;
 
     /**
      * @brief process new input command
@@ -37,15 +29,18 @@ public:
      */
     bool onCmd(std::vector<std::string> &cmd);
 
-protected:
-    std::mutex mCvMutex;
-    std::condition_variable mCv;
-    std::list<std::string> mReqList;
-    std::vector<std::thread> mThreadArray;
-    bool mStop;
-    int mUdsFd;
+    /**
+     * @brief callback function, for new signaling has been received
+     * 
+     * @param sess: session data
+     * @param sig: received signaling object
+     * @return true: continue working
+     * @return false: stop working
+     */
+    bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig);
 
-    void udsThreadFunc();
+protected:
+    FUNC_SEND_SIGNALING sendSig;
 
     void sendRequest(std::string &req);
     bool onCmd_Info(std::vector<std::string> &cmd);

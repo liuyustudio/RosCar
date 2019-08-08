@@ -46,8 +46,8 @@ public:
     bool start(const char * udsUri);
     void stop();
 
-    void sendRawString(std::string &req);
-    void sendSig(rapidjson::Document &req);
+    bool sendRawString(std::string &req);
+    bool sendSig(rapidjson::Document &req);
 
 protected:
     void threadFunc();
@@ -55,7 +55,10 @@ protected:
     bool onSoc(SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
-    bool parseRawBuffer(SESSION_t &sess, rapidjson::Document &doc);
+    bool parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig);
+    bool sendSignalingToBuffer(SESSION_t &sess, rapidjson::Document &sig);
+    bool sendSignalingToBuffer(SESSION_t &sess, std::string &sig);
+
 
     std::vector<std::thread> mThreadArray;
     bool mStopUDS;

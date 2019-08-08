@@ -6,20 +6,36 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <ros/ros.h>
+#include "cli.h"
+#include "udsClient.h"
 
 using namespace std;
+using namespace roscar::car::cli;
 
 static const char *DELIM = " ";
 static const char *UNIX_DOMAIN_SOCKET_URI = "/tmp/.roscar.car.interface.soc";
 
+bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig);
+bool sendSignaling(std::string &sig);
 bool process(const char *line);
+
+UDSClient udsClient(onSignaling);
+Cli cli(sendSignaling);
 
 int main(int argc, char **argv)
 {
-    printf("\nROS Car CLI\n\n");
+    ROS_INFO("\nROS Car CLI\n\n");
 
     char *line = nullptr;
     bool ret = true;
+
+    // init udsClient
+    if (!udsClient.start(UNIX_DOMAIN_SOCKET_URI))
+    {
+        ROS_ERROR("Err: init udsClient fail.");
+        return EXIT_FAILURE;
+    }
 
     while (true)
     {
@@ -43,7 +59,17 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("\nROS Car CLI: Bye\n\n");
+    ROS_INFO("\nROS Car CLI: Bye\n\n");
+}
+
+bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig)
+{
+    return cli.onSignaling(sess, sig);
+}
+
+bool sendSignaling(std::string &sig)
+{
+    return udsClient.sendRawString(sig);
 }
 
 bool process(const char *line)
@@ -57,10 +83,5 @@ bool process(const char *line)
         cmd.push_back(item);
     }
 
-    if (strcasecmp(cmd[0].c_str(), "info") == 0)
-    {
-        printf("Info command: %s\n", line);
-    }
-
-    return true;
+    return cli.onCmd(cmd);
 }

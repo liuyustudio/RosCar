@@ -1,7 +1,5 @@
 #include "interface.h"
 
-#include "rapidjson/writer.h"
-
 #include "roscar_common/rcmp.h"
 #include "pilot/Info.h"
 
@@ -81,13 +79,11 @@ bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
 
 bool Interface::sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    // convert signaling object into jsong string
-    StringBuffer buffer;
-    Writer<StringBuffer> writer(buffer);
-    sig.Accept(writer);
+    // get corresponding json string
+    string jsonSig = RCMP::getJson(sig);
 
     // check empty send buffer size
-    auto len = buffer.GetSize();
+    auto len = jsonSig.length();
     if (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd < len)
     {
         if (sess.sendBufPos == 0 ||
@@ -105,7 +101,7 @@ bool Interface::sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
         sess.sendBufEnd = bufLen;
     }
 
-    memcpy(sess.sendBuf + sess.sendBufEnd, buffer.GetString(), len);
+    memcpy(sess.sendBuf + sess.sendBufEnd, jsonSig.c_str(), len);
     sess.sendBufEnd += len;
 
     return true;
