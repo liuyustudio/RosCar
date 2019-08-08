@@ -61,7 +61,7 @@ const char *RCMP::SCHEMA_SIG_LOGIN = ""
                                      "       },"
                                      "       \"seq\":{"
                                      "           \"type\":\"integer\""
-                                     "       }"
+                                     "       },"
                                      "       \"payload\":{"
                                      "          \"type\":\"object\","
                                      "          \"properties\":{"
@@ -93,7 +93,7 @@ const char *RCMP::SCHEMA_SIG_LOGIN_RESP = ""
                                           "       },"
                                           "       \"errno\":{"
                                           "           \"type\":\"integer\""
-                                          "       }"
+                                          "       },"
                                           "       \"errmsg\":{"
                                           "           \"type\":\"string\""
                                           "       },"
@@ -133,7 +133,7 @@ const char *RCMP::SCHEMA_SIG_INFO_RESP = ""
                                          "       },"
                                          "       \"seq\":{"
                                          "           \"type\":\"integer\""
-                                         "       }"
+                                         "       },"
                                          "       \"payload\":{"
                                          "          \"type\":\"object\","
                                          "          \"properties\":{"
@@ -251,7 +251,8 @@ Document &RCMP::convertToResp(rapidjson::Document &sig,
     return sig;
 }
 
-string RCMP::getJson(rapidjson::Document & sig) {
+string RCMP::getJson(rapidjson::Document &sig)
+{
     // convert signaling object to json string
     StringBuffer buffer;
     Writer<StringBuffer> writer(buffer);
