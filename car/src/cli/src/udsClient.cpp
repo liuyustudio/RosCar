@@ -23,8 +23,6 @@ namespace car
 namespace cli
 {
 
-const char *UDSClient::UNIX_DOMAIN_SOCKET_URI = "/tmp/.roscar.car.interface.soc";
-
 UDSClient::UDSClient(FUNC_ONSIGLAING cb_onSig)
     : mStopUDS(false), mCb_OnSig(cb_onSig)
 {
@@ -60,7 +58,7 @@ bool UDSClient::start(const char *udsUri)
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, UNIX_DOMAIN_SOCKET_URI, sizeof(addr.sun_path) - 1);
+        strncpy(addr.sun_path, udsUri, sizeof(addr.sun_path) - 1);
         if (connect(mUdsSoc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
         {
             printf("Err: Fail to connect to UDS[%s]. Error[%d]: %s\n",

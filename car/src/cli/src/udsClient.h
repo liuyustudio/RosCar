@@ -25,7 +25,6 @@ public:
     static const int MAX_CLIENT_COUNT = 8;
     static const int RECV_BUFFER_CAPACITY = 8 * 1024;
     static const int SEND_BUFFER_CAPACITY = 8 * 1024;
-    static const char *UNIX_DOMAIN_SOCKET_URI;
 
     typedef struct SESSION
     {

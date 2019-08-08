@@ -10,6 +10,7 @@
 using namespace std;
 
 static const char *DELIM = " ";
+static const char *UNIX_DOMAIN_SOCKET_URI = "/tmp/.roscar.car.interface.soc";
 
 bool process(const char *line);
 
