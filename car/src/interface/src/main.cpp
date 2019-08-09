@@ -1,7 +1,6 @@
 
 #include <cstdlib>
 #include <string>
-#include <thread>
 
 #include "ros/ros.h"
 #include "interface.h"
@@ -11,10 +10,7 @@ using namespace std;
 using namespace roscar::car::interface;
 using namespace roscar::car::roscar_common;
 
-void udsThreadFunc(const char *uri)
-{
-    ROS_INFO("start Unix Domain Socket on %s", uri);
-}
+const char *UDS_URI = "/tmp/.roscar.car.interface.soc";
 
 int main(int argc, char **argv)
 {
@@ -28,11 +24,15 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
     ROS_INFO("ROS Car Interface Ready.");
 
+    // init interface
+    ROS_DEBUG("Debug: init interface.");
     Interface::init(nh);
-    UDS uds(Interface::onSignaling);
 
-    thread udsThread = thread(&UDS::threadFunc, &uds);
-    udsThread.join();
+    // init uds
+    ROS_DEBUG("Debug: init uds.");
+    UDS uds(Interface::onSignaling);
+    uds.start(UDS_URI);
+    uds.join();
 
     return 0;
 }

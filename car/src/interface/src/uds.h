@@ -1,6 +1,8 @@
 #ifndef _ROSCAR_CAR_INTERFACE_UDS_H_
 #define _ROSCAR_CAR_INTERFACE_UDS_H_
 
+#include <thread>
+#include <vector>
 #include "rapidjson/document.h"
 #include "roscar_common/rcmp.h"
 
@@ -20,7 +22,6 @@ public:
     static const int MAX_CLIENT_COUNT = 8;
     static const int RECV_BUFFER_CAPACITY = 64 * 1024;
     static const int SEND_BUFFER_CAPACITY = 64 * 1024;
-    static const char *UDS_PATH;
 
     typedef struct SESSION
     {
@@ -39,20 +40,28 @@ public:
     UDS(FUNC_ONSIGLAING cb_onSig);
     virtual ~UDS();
 
-    void threadFunc();
+    bool start(const char * udsUri);
+    void stop();
+
+    inline void join() {
+        for (auto &t: mThreadArray) {
+            t.join();
+        }
+    }
 
 protected:
+    void threadFunc();
+
     bool onSession(SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
     bool parseSig(SESSION_t &sess, rapidjson::Document &doc);
 
-    bool init();
-    void teardown();
-
     bool mStopUDS;
     int mEpollfd = 0;
     int mUdsSoc = 0;
+
+    std::vector<std::thread> mThreadArray;
 
     FUNC_ONSIGLAING mCb_OnSig;
 };

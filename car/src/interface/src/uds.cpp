@@ -22,17 +22,97 @@ namespace car
 namespace interface
 {
 
-const char *UDS::UDS_PATH = "/tmp/.roscar.car.interface.soc";
-
 UDS::UDS(FUNC_ONSIGLAING cb_onSig)
     : mStopUDS(false), mCb_OnSig(cb_onSig)
 {
-    init();
 }
 
 UDS::~UDS()
 {
-    teardown();
+    stop();
+}
+
+bool UDS::start(const char *udsUri)
+{
+    ROS_DEBUG("Debug: start UDS");
+
+    // init epoll file descriptor
+    if ((mEpollfd = epoll_create1(0)) < 0)
+    {
+        ROS_ERROR("Err: Failed to create epoll. Error[%d]: %s",
+                  errno, strerror(errno));
+        stop();
+        return false;
+    }
+
+    // init Unix Domain Socket
+    {
+        ROS_DEBUG("Debug: init Unix Domain Socket: %s", udsUri);
+        if ((mUdsSoc = socket(AF_UNIX, SOCK_STREAM, 0)) <= 0)
+        {
+            ROS_ERROR("Err: Fail to create socket. Error[%d]: %s",
+                      errno, strerror(errno));
+            stop();
+            return false;
+        }
+
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, udsUri, sizeof(addr.sun_path) - 1);
+        unlink(udsUri);
+
+        if (bind(mUdsSoc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
+            ROS_ERROR("Err: Fail to bind[%s]. Error[%d]: %s",
+                      udsUri, errno, strerror(errno));
+            stop();
+            return false;
+        }
+
+        if (listen(mUdsSoc, SOMAXCONN) == -1)
+        {
+            ROS_ERROR("Err: Listen fail. Error[%d]: %s",
+                      errno, strerror(errno));
+            stop();
+            return false;
+        }
+
+        // start thread
+        mThreadArray.emplace_back(&UDS::threadFunc, this);
+    }
+
+    ROS_DEBUG("Debug: UDS started");
+    
+    return true;
+}
+
+void UDS::stop()
+{
+    ROS_DEBUG("Debug: stop UDS");
+
+    // stop threads
+    mStopUDS = true;
+    for (auto &t : mThreadArray)
+    {
+        t.join();
+    }
+
+    // close epoll file descriptor
+    if (mEpollfd)
+    {
+        close(mEpollfd);
+        mEpollfd = 0;
+    }
+
+    // close Unix Domain Socket
+    if (mUdsSoc)
+    {
+        close(mUdsSoc);
+        mUdsSoc = 0;
+    }
+
+    ROS_DEBUG("Debug: UDS stopped");
 }
 
 void UDS::threadFunc()
@@ -278,73 +358,6 @@ bool UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
     if (sess.recvBufPos == sess.recvBufEnd)
     {
         sess.recvBufPos = sess.recvBufEnd = 0;
-    }
-}
-
-bool UDS::init()
-{
-    // init epoll file descriptor
-    if ((mEpollfd = epoll_create1(0)) < 0)
-    {
-        ROS_ERROR("Err: Failed to create epoll. Error[%d]: %s",
-                  errno, strerror(errno));
-        return false;
-    }
-
-    // init Unix Domain Socket
-    {
-        ROS_DEBUG("Debug: init Unix Domain Socket: %s", UDS_PATH);
-        if ((mUdsSoc = socket(AF_UNIX, SOCK_STREAM, 0)) <= 0)
-        {
-            ROS_ERROR("Err: Fail to create socket. Error[%d]: %s",
-                      errno, strerror(errno));
-            return false;
-        }
-
-        struct sockaddr_un addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, UDS_PATH, sizeof(addr.sun_path) - 1);
-        unlink(UDS_PATH);
-
-        if (bind(mUdsSoc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-        {
-            ROS_ERROR("Err: Fail to bind[%s]. Error[%d]: %s",
-                      UDS_PATH, errno, strerror(errno));
-            return false;
-        }
-
-        if (listen(mUdsSoc, SOMAXCONN) == -1)
-        {
-            ROS_ERROR("Err: Listen fail. Error[%d]: %s",
-                      errno, strerror(errno));
-            return false;
-        }
-    }
-}
-
-void UDS::teardown()
-{
-    // close epoll file descriptor
-    if (mEpollfd)
-    {
-        if (close(mEpollfd))
-        {
-            ROS_ERROR("Err: Fail to close epoll. Error[%d]: %s",
-                      errno, strerror(errno));
-        }
-        mEpollfd = 0;
-    }
-
-    // close Unix Domain Socket
-    if (mUdsSoc)
-    {
-        if (close(mUdsSoc))
-        {
-            ROS_ERROR("Err: Fail to close Unix Domain Socket. Error[%d]: %s",
-                      errno, strerror(errno));
-        }
-        mUdsSoc = 0;
     }
 }
 
