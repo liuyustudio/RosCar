@@ -71,6 +71,8 @@ bool UDSClient::start(const char *udsUri)
 
     // start threads
     mThreadArray.emplace_back(&UDSClient::threadFunc, this);
+
+    return true;
 }
 
 void UDSClient::stop()
@@ -148,7 +150,7 @@ void UDSClient::threadFunc()
         ret = epoll_wait(mEpollfd, events, EPOLL_MAX_EVENTS, EPOLL_TIMEOUT);
         if (ret < 0)
         {
-            if (ret == EAGAIN)
+            if (errno == EAGAIN || errno == EINTR)
             {
                 usleep(EPOLL_RETRY_INTERVAL);
             }
@@ -184,14 +186,16 @@ void UDSClient::threadFunc()
         }
 
         // process request signalings
-        if (!reqList.empty() && mReqStrListMutex.try_lock())
+        if (!mReqStrList.empty() && mReqStrListMutex.try_lock())
         {
             // swap buffer
             reqList.swap(mReqStrList);
             mReqStrListMutex.unlock();
 
-            for (auto &req: reqList) {
-                if (!sendSignalingToBuffer(sess, req)) {
+            for (auto &req : reqList)
+            {
+                if (!sendSignalingToBuffer(sess, req))
+                {
                     ROS_ERROR("Err: send signaling to buffer fail, drop signalings.");
                     break;
                 }
@@ -236,7 +240,19 @@ bool UDSClient::onRead(SESSION_t &sess)
     assert(sess.recvBufPos <= sess.recvBufEnd);
     assert(sess.recvBufEnd < RECV_BUFFER_CAPACITY);
 
+    // receive data from socket
     int bufSize = RECV_BUFFER_CAPACITY - sess.recvBufEnd;
+    int nRet = recv(sess.soc,
+                    sess.recvBuf + sess.recvBufEnd,
+                    bufSize,
+                    0);
+    if (nRet < 0)
+    {
+        ROS_ERROR("Err: client[%d] read fail. Error[%d]: %s",
+                  sess.soc, errno, strerror(errno));
+        return false;
+    }
+    sess.recvBufEnd += nRet;
 
     // get signaling from raw buffer
     Document doc;

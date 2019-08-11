@@ -83,7 +83,7 @@ bool UDS::start(const char *udsUri)
     }
 
     ROS_DEBUG("Debug: UDS started");
-    
+
     return true;
 }
 
@@ -142,10 +142,9 @@ void UDS::threadFunc()
         ret = epoll_wait(mEpollfd, events, EPOLL_MAX_EVENTS, EPOLL_TIMEOUT);
         if (ret < 0)
         {
-            if (ret == EAGAIN)
+            if (errno == EAGAIN || errno == EINTR)
             {
                 usleep(EPOLL_RETRY_INTERVAL);
-                continue;
             }
             else
             {
@@ -242,7 +241,24 @@ bool UDS::onRead(SESSION_t &sess)
     assert(sess.recvBufPos <= sess.recvBufEnd);
     assert(sess.recvBufEnd < RECV_BUFFER_CAPACITY);
 
+    // receive data from socket
     int bufSize = RECV_BUFFER_CAPACITY - sess.recvBufEnd;
+    int nRet = recv(sess.soc,
+                    sess.recvBuf + sess.recvBufEnd,
+                    bufSize,
+                    0);
+    if (nRet < 0)
+    {
+        ROS_ERROR("Err: client[%d] read fail. Error[%d]: %s",
+                  sess.soc, errno, strerror(errno));
+        return false;
+    }
+    else if (nRet == 0)
+    {
+        ROS_INFO("Info: client[%d] session was broken", sess.soc);
+        return false;
+    }
+    sess.recvBufEnd += nRet;
 
     // parse signaling from raw buffer
     Document doc;
