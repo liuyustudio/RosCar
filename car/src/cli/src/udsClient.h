@@ -43,7 +43,7 @@ public:
     UDSClient(FUNC_ONSIGLAING cb_onSig);
     virtual ~UDSClient();
 
-    bool start(const char * udsUri);
+    bool start(const char *udsUri);
     void stop();
 
     bool sendRawString(std::string &req);
@@ -58,7 +58,7 @@ protected:
     bool parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig);
     bool sendSignalingToBuffer(SESSION_t &sess, rapidjson::Document &sig);
     bool sendSignalingToBuffer(SESSION_t &sess, std::string &sig);
-
+    bool setWrite(SESSION_t &sess, bool write = true);
 
     std::vector<std::thread> mThreadArray;
     bool mStopUDS;

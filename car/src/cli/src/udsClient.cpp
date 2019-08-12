@@ -199,6 +199,8 @@ void UDSClient::threadFunc()
                     ROS_ERROR("Err: send signaling to buffer fail, drop signalings.");
                     break;
                 }
+
+                setWrite(sess, true);
             }
 
             reqList.clear();
@@ -288,21 +290,7 @@ bool UDSClient::onRead(SESSION_t &sess)
     // are there data in send buffer?
     if (sess.sendBufPos ^ sess.sendBufEnd)
     {
-        // set epoll write event for this socket
-        if (0 == sess.events & EPOLLOUT)
-        {
-            sess.events |= EPOLLOUT;
-
-            struct epoll_event event;
-            event.data.fd = sess.soc;
-            event.events = sess.events;
-            if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
-            {
-                ROS_ERROR("Err: Failed to add poll-out event for client[%d]. Error[%d]: %s\n",
-                          sess.soc, errno, strerror(errno));
-                return false;
-            }
-        }
+        return setWrite(sess, true);
     }
 }
 
@@ -331,15 +319,7 @@ bool UDSClient::onWrite(SESSION_t &sess)
         sess.recvBufPos = sess.recvBufEnd = 0;
 
         // remove epoll write event
-        epoll_event event;
-        event.data.fd = sess.soc;
-        event.events = sess.events & (~EPOLLOUT);
-        if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
-        {
-            ROS_ERROR("Err: Failed to modify socket[%d] epoll event fail. Error[%d]: %s\n",
-                      sess.soc, errno, strerror(errno));
-            return false;
-        }
+        return setWrite(sess, false);
     }
 }
 
@@ -402,6 +382,49 @@ bool UDSClient::sendSignalingToBuffer(SESSION_t &sess, string &sig)
 
     memcpy(sess.sendBuf + sess.sendBufEnd, sig.c_str(), len);
     sess.sendBufEnd += len;
+
+    return true;
+}
+
+bool UDSClient::setWrite(SESSION_t &sess, bool write)
+{
+    // are there data in send buffer?
+    if (write)
+    {
+        // set epoll write event for this socket
+        if (0 == sess.events & EPOLLOUT)
+        {
+            sess.events |= EPOLLOUT;
+
+            struct epoll_event event;
+            event.data.fd = sess.soc;
+            event.events = sess.events;
+            if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
+            {
+                ROS_ERROR("Err-UdsClient::setWrite: Failed to add poll-out event for client[%d]. Error[%d]: %s\n",
+                          sess.soc, errno, strerror(errno));
+                return false;
+            }
+        }
+    }
+    else
+    {
+        // set epoll write event for this socket
+        if (sess.events & EPOLLOUT)
+        {
+            sess.events &= ~EPOLLOUT;
+
+            struct epoll_event event;
+            event.data.fd = sess.soc;
+            event.events = sess.events;
+            if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
+            {
+                ROS_ERROR("Err-UdsClient::setWrite: Failed to remove poll-out event for client[%d]. Error[%d]: %s\n",
+                          sess.soc, errno, strerror(errno));
+                return false;
+            }
+        }
+    }
 
     return true;
 }
