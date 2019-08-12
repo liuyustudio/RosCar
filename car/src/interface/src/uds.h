@@ -52,10 +52,10 @@ public:
 protected:
     void threadFunc();
 
-    bool onSession(SESSION_t &sess);
+    bool onSession(unsigned int socEvents, SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
-    bool parseSig(SESSION_t &sess, rapidjson::Document &doc);
+    int parseSig(SESSION_t &sess, rapidjson::Document &doc);
 
     bool mStopUDS;
     int mEpollfd = 0;

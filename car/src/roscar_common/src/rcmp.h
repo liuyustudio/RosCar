@@ -2,6 +2,7 @@
 #define _ROSCAR_CAR_ROSCARCOMMON_RCMP_H_
 
 #include <assert.h>
+#include <string.h>
 #include <map>
 
 #include "rapidjson/document.h"
@@ -24,7 +25,7 @@ public:
     static const char RCMP_STARTFLAG = 0x5A;
     static const int RCMP_VERSION = 1;
     static const int RCMP_MIN_FRAME_SIZE = RCMP_FRAMEHEADSIZE;
-    static const int RCMP_MAXPAYLOAD = 0x10000 - RCMP_FRAMEHEADSIZE;
+    static const int RCMP_MAXPAYLOAD = 0x1000 - RCMP_FRAMEHEADSIZE;
 
     static const char *FIELD_CMD;
     static const char *FIELD_SEQ;
@@ -63,7 +64,7 @@ public:
         unsigned char startFlag;
         unsigned char reserved;
         unsigned char length[2];
-        char *payload;
+        char payload[0];
 
         void setLen(int len)
         {
@@ -74,6 +75,14 @@ public:
         int len()
         {
             return (length[0] << 8) | length[1];
+        }
+        void init(const void *framePayload, const int len)
+        {
+            assert(RCMP_MAXPAYLOAD >= len);
+            startFlag = RCMP_STARTFLAG;
+            reserved = 0;
+            setLen(RCMP_FRAMEHEADSIZE + len);
+            memcpy(payload, framePayload, len);
         }
     } FRAME_t;
 
@@ -128,7 +137,20 @@ public:
      * @param sig: valid signaling object
      * @return std::string: corresponding Json string 
      */
-    static std::string getJson(rapidjson::Document & sig);
+    static std::string getJson(rapidjson::Document &sig);
+
+    /**
+     * @brief 
+     * 
+     * @param buf buffer for store frame
+     * @param len buffer size
+     * @param payload frame payload
+     * @return int: frame length, in bytes, if success; otherwrise return 0.
+     */
+    static int fillFrame(void *buf, const int len, const void *payload, const int payloadLen);
+    static int fillFrame(void *buf, const int len, std::string &sig);
+    static int fillFrame(void *buf, const int len, std::string &&sig);
+    static int fillFrame(void *buf, const int len, rapidjson::Document &sig);
 
 protected:
     static Initializer gInitializer;

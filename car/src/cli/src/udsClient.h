@@ -29,7 +29,7 @@ public:
     typedef struct SESSION
     {
         int soc;
-        unsigned int events;
+        unsigned int events = 0;
         unsigned int recvBufPos = 0;
         unsigned int recvBufEnd = 0;
         unsigned int sendBufPos = 0;
@@ -52,13 +52,13 @@ public:
 protected:
     void threadFunc();
 
-    bool onSoc(SESSION_t &sess);
+    bool onSoc(unsigned int socEvents, SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
     bool parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig);
     bool sendSignalingToBuffer(SESSION_t &sess, rapidjson::Document &sig);
     bool sendSignalingToBuffer(SESSION_t &sess, std::string &sig);
-    bool setWrite(SESSION_t &sess, bool write = true);
+    bool setWriteFlag(SESSION_t &sess, bool writeFlag = true);
 
     std::vector<std::thread> mThreadArray;
     bool mStopUDS;

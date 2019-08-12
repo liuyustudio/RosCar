@@ -192,6 +192,8 @@ int RCMP::parse(void *pBuf, int &len, Document &doc)
             // invalid signaling
             return ERROR_INVALID;
         }
+
+        return SUCCESS;
     }
     catch (...)
     {
@@ -261,6 +263,38 @@ string RCMP::getJson(rapidjson::Document &sig)
     return buffer.GetString();
 }
 
+int RCMP::fillFrame(void *buf, const int len, const void *payload, const int payloadLen)
+{
+    assert(len > RCMP_FRAMEHEADSIZE);
+
+    if (payloadLen + RCMP_FRAMEHEADSIZE > len)
+    {
+        return 0;
+    }
+
+    FRAME_t *frame = static_cast<FRAME_t *>(buf);
+
+    frame->init(payload, payloadLen);
+
+    return frame->len();
+}
+
+int RCMP::fillFrame(void *buf, const int len, std::string &sig)
+{
+    return fillFrame(buf, len, sig.c_str(), sig.length());
+}
+
+int RCMP::fillFrame(void *buf, const int len, std::string &&sig)
+{
+    return fillFrame(buf, len, sig);
+}
+
+int RCMP::fillFrame(void *buf, const int len, rapidjson::Document &sig)
+{
+    string jsonStr = getJson(sig);
+    return fillFrame(buf, len, getJson(sig));
+}
+
 void RCMP::init()
 {
     // init req->resp cmd maping
@@ -319,7 +353,7 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
         // too large
         return ERROR_INVALID;
     }
-    else if (sigLen < RCMP_MAX_SIGNALING_LENGTH)
+    else if (len < sigLen)
     {
         // Need more data
         return NEED_MORE_DATA;
@@ -334,53 +368,36 @@ bool RCMP::verifySig(Document &doc)
     if (!doc.Accept(*gValidatorMap[SIGNALING]))
     {
         // invalid format
-        return ERROR_INVALID;
+        return false;
     }
 
-    const char *sigCmd = NULL;
+    rapidjson::SchemaValidator *pValidator = nullptr;
+    const char *cmdField = doc[FIELD_CMD].GetString();
 
-    // login
-    if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGIN) == 0)
-    {
-        sigCmd = SIG_LOGIN;
-    }
-    // login resp
-    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGIN_RESP) == 0)
-    {
-        sigCmd = SIG_LOGIN_RESP;
-    }
-
-    // logout
-    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGOUT) == 0)
-    {
-        sigCmd = SIG_LOGOUT;
-    }
-    // logout resp
-    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_LOGOUT_RESP) == 0)
-    {
-        sigCmd = SIG_LOGOUT_RESP;
-    }
-
-    // ping
-    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_PING) == 0)
-    {
-        sigCmd = SIG_PING;
-    }
-    // pong resp
-    else if (strcasecmp(doc[FIELD_CMD].GetString(), SIG_PONG) == 0)
-    {
-        sigCmd = SIG_PONG;
-    }
-
-    if (sigCmd)
-    {
-        return doc.Accept(*gValidatorMap[sigCmd]) ? SUCCESS : ERROR_INVALID;
-    }
+    if (strcasecmp(cmdField, SIG_LOGIN) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
+    else if (strcasecmp(cmdField, SIG_LOGIN_RESP) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
+    else if (strcasecmp(cmdField, SIG_LOGOUT) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
+    else if (strcasecmp(cmdField, SIG_LOGOUT_RESP) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
+    else if (strcasecmp(cmdField, SIG_PING) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
+    else if (strcasecmp(cmdField, SIG_PONG) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
+    else if (strcasecmp(cmdField, SIG_INFO) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
+    else if (strcasecmp(cmdField, SIG_INFO_RESP) == 0)
+        pValidator = gValidatorMap[SIG_LOGIN];
     else
-    {
-        // unknown signaling cmd
-        return ERROR;
-    }
+        return false; // unknown signaling cmd
+
+    // TODO: Debug HERE...
+
+    // verify format
+    assert(pValidator);
+    return doc.Accept(*pValidator) ? true : false;
 }
 
 } // namespace roscar_common

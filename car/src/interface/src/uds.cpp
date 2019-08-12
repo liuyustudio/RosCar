@@ -154,53 +154,60 @@ void UDS::threadFunc()
                 break;
             }
         }
-
-        for (int i = 0; i < ret; ++i)
+        else if (ret == 0)
         {
-            if (events[i].data.fd == mUdsSoc)
+            // timeout
+            usleep(EPOLL_RETRY_INTERVAL);
+        }
+        else
+        {
+
+            for (int i = 0; i < ret; ++i)
             {
-                // UDS server socket
-
-                // accept client
-                if ((soc = accept(mUdsSoc, NULL, NULL)) == -1)
+                if (events[i].data.fd == mUdsSoc)
                 {
-                    ROS_ERROR("Err: accept fail. Error[%d]: %s", errno, strerror(errno));
-                    continue;
+                    // UDS server socket
+
+                    // accept client
+                    if ((soc = accept(mUdsSoc, NULL, NULL)) == -1)
+                    {
+                        ROS_ERROR("Err: accept fail. Error[%d]: %s", errno, strerror(errno));
+                        continue;
+                    }
+
+                    // add client soc into epoll
+                    event.data.fd = soc;
+                    event.events = EPOLLIN;
+                    if (epoll_ctl(mEpollfd, EPOLL_CTL_ADD, soc, &event))
+                    {
+                        ROS_ERROR("Err: Failed to add client fd to epoll. Error[%d]: %s",
+                                  errno, strerror(errno));
+                        close(soc);
+                        continue;
+                    }
+
+                    // bind client socket with session data
+                    sess.soc = event.data.fd;
+                    sess.events = event.events;
+                    soc2Sess[soc] = sess;
+
+                    ROS_INFO("Debug: Accept client[%d]", soc);
                 }
-
-                // add client soc into epoll
-                event.data.fd = soc;
-                event.events = EPOLLIN;
-                if (epoll_ctl(mEpollfd, EPOLL_CTL_ADD, soc, &event))
+                else
                 {
-                    ROS_ERROR("Err: Failed to add client fd to epoll. Error[%d]: %s",
-                              errno, strerror(errno));
-                    close(soc);
-                    continue;
-                }
+                    // client socket
+                    soc = events[i].data.fd;
+                    SESSION_t &sess = soc2Sess[soc];
 
-                // bind client socket with session data
-                sess.soc = event.data.fd;
-                sess.events = event.events;
-                soc2Sess[soc] = sess;
+                    if (!onSession(events[i].events, sess))
+                    {
+                        ROS_DEBUG("Debug: Remove socket[%d]", soc);
 
-                ROS_INFO("Debug: Accept client[%d]", soc);
-            }
-            else
-            {
-                // client socket
-                soc = events[i].data.fd;
-                SESSION_t &sess = soc2Sess[soc];
-                sess.events = events[i].events;
-
-                if (!onSession(sess))
-                {
-                    ROS_DEBUG("Debug: Remove socket[%d]", soc);
-
-                    // unbind client socket and session
-                    soc2Sess.erase(soc);
-                    // remove socket from epoll
-                    epoll_ctl(mEpollfd, EPOLL_CTL_DEL, soc, NULL);
+                        // unbind client socket and session
+                        soc2Sess.erase(soc);
+                        // remove socket from epoll
+                        epoll_ctl(mEpollfd, EPOLL_CTL_DEL, soc, NULL);
+                    }
                 }
             }
         }
@@ -209,25 +216,25 @@ void UDS::threadFunc()
     ROS_DEBUG("Debug: UDS thread stop");
 }
 
-bool UDS::onSession(SESSION_t &sess)
+bool UDS::onSession(unsigned int socEvents, SESSION_t &sess)
 {
-    if (sess.events & EPOLLIN)
+    if (socEvents & EPOLLIN)
     {
         // available for read
         return onRead(sess);
     }
-    if (sess.events & EPOLLOUT)
+    if (socEvents & EPOLLOUT)
     {
         // available for write
         return onWrite(sess);
     }
-    if (sess.events & (EPOLLRDHUP | EPOLLHUP))
+    if (socEvents & (EPOLLRDHUP | EPOLLHUP))
     {
         // socket has been closed
         ROS_DEBUG("Debug: socket[%d] has been closed", sess.soc);
         return false;
     }
-    if (sess.events & EPOLLERR)
+    if (socEvents & EPOLLERR)
     {
         // socket has been closed
         ROS_ERROR("Err: socket[%d]", sess.soc);
@@ -262,10 +269,19 @@ bool UDS::onRead(SESSION_t &sess)
 
     // parse signaling from raw buffer
     Document doc;
-    if (!parseSig(sess, doc))
+    nRet = parseSig(sess, doc);
+    if (nRet != SUCCESS)
     {
-        ROS_ERROR("Err: socket[%d] parse signaling fail", sess.soc);
-        return false;
+        if (nRet == NEED_MORE_DATA)
+        {
+            // need more data
+            return true;
+        }
+        else
+        {
+            ROS_ERROR("Err: socket[%d] parse signaling fail", sess.soc);
+            return false;
+        }
     }
 
     // process signaling
@@ -349,7 +365,7 @@ bool UDS::onWrite(SESSION_t &sess)
     }
 }
 
-bool UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
+int UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
 {
     char *rawBuf = sess.recvBuf + sess.recvBufPos;
     int len = sess.recvBufEnd - sess.recvBufPos;
@@ -357,16 +373,7 @@ bool UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
     int nRet = RCMP::parse(rawBuf, len, doc);
     if (nRet != SUCCESS)
     {
-        if (nRet == NEED_MORE_DATA)
-        {
-            // need more data
-            return true;
-        }
-        else
-        {
-            ROS_DEBUG("Debug: parse signaling fail: %d", nRet);
-            return false;
-        }
+        return nRet;
     }
 
     // adjust buffer pos
@@ -375,6 +382,8 @@ bool UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
     {
         sess.recvBufPos = sess.recvBufEnd = 0;
     }
+
+    return SUCCESS;
 }
 
 } // namespace interface

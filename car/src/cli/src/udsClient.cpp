@@ -170,10 +170,7 @@ void UDSClient::threadFunc()
         {
             assert(events[0].data.fd == mUdsSoc);
 
-            // client socket
-            sess.events = events[0].events;
-
-            if (!onSoc(sess))
+            if (!onSoc(events[0].events, sess))
             {
                 ROS_DEBUG("Debug: Remove socket[%d]\n", mUdsSoc);
 
@@ -200,7 +197,7 @@ void UDSClient::threadFunc()
                     break;
                 }
 
-                setWrite(sess, true);
+                setWriteFlag(sess, true);
             }
 
             reqList.clear();
@@ -210,25 +207,25 @@ void UDSClient::threadFunc()
     ROS_DEBUG("Debug: UDSClient thread stop\n");
 }
 
-bool UDSClient::onSoc(SESSION_t &sess)
+bool UDSClient::onSoc(unsigned int socEvents, SESSION_t &sess)
 {
-    if (sess.events & EPOLLIN)
+    if (socEvents & EPOLLIN)
     {
         // available for read
         return onRead(sess);
     }
-    if (sess.events & EPOLLOUT)
+    if (socEvents & EPOLLOUT)
     {
         // available for write
         return onWrite(sess);
     }
-    if (sess.events & (EPOLLRDHUP | EPOLLHUP))
+    if (socEvents & (EPOLLRDHUP | EPOLLHUP))
     {
         // socket has been closed
         ROS_DEBUG("Debug: socket[%d] has been closed\n", sess.soc);
         return false;
     }
-    if (sess.events & EPOLLERR)
+    if (socEvents & EPOLLERR)
     {
         // socket has been closed
         ROS_ERROR("Err: socket[%d]\n", sess.soc);
@@ -290,7 +287,7 @@ bool UDSClient::onRead(SESSION_t &sess)
     // are there data in send buffer?
     if (sess.sendBufPos ^ sess.sendBufEnd)
     {
-        return setWrite(sess, true);
+        return setWriteFlag(sess, true);
     }
 }
 
@@ -319,7 +316,7 @@ bool UDSClient::onWrite(SESSION_t &sess)
         sess.recvBufPos = sess.recvBufEnd = 0;
 
         // remove epoll write event
-        return setWrite(sess, false);
+        return setWriteFlag(sess, false);
     }
 }
 
@@ -369,7 +366,7 @@ bool UDSClient::sendSignalingToBuffer(SESSION_t &sess, string &sig)
             (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd + sess.sendBufPos < len))
         {
             // send buffer full
-            ROS_DEBUG("Debug: send buffer fulll(soc: [%d]", sess.soc);
+            ROS_ERROR("send buffer fulll(soc: [%d]", sess.soc);
             return false;
         }
 
@@ -380,19 +377,30 @@ bool UDSClient::sendSignalingToBuffer(SESSION_t &sess, string &sig)
         sess.sendBufEnd = bufLen;
     }
 
-    memcpy(sess.sendBuf + sess.sendBufEnd, sig.c_str(), len);
-    sess.sendBufEnd += len;
-
-    return true;
+    int nRet = RCMP::fillFrame(sess.sendBuf + sess.sendBufEnd,
+                               RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd,
+                               sig.c_str(),
+                               len);
+    if (nRet > 0)
+    {
+        sess.sendBufEnd += nRet;
+        return true;
+    }
+    else
+    {
+        // send buffer full
+        ROS_ERROR("fill frame fail.");
+        return false;
+    }
 }
 
-bool UDSClient::setWrite(SESSION_t &sess, bool write)
+bool UDSClient::setWriteFlag(SESSION_t &sess, bool writeFlag)
 {
     // are there data in send buffer?
-    if (write)
+    if (writeFlag)
     {
         // set epoll write event for this socket
-        if (0 == sess.events & EPOLLOUT)
+        if (!(sess.events & EPOLLOUT))
         {
             sess.events |= EPOLLOUT;
 
