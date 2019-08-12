@@ -184,7 +184,7 @@ void UDS::threadFunc()
                 sess.events = event.events;
                 soc2Sess[soc] = sess;
 
-                ROS_DEBUG("Debug: Accept socket[%d]", soc);
+                ROS_INFO("Debug: Accept client[%d]", soc);
             }
             else
             {
