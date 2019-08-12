@@ -1,6 +1,8 @@
 
 #include <cstdlib>
 #include <string>
+#include <chrono>
+#include <thread>
 
 #include "ros/ros.h"
 #include "interface.h"
@@ -22,7 +24,6 @@ int main(int argc, char **argv)
     }
 
     ros::NodeHandle nh;
-    ROS_INFO("ROS Car Interface Ready.");
 
     // init interface
     ROS_DEBUG("Debug: init interface.");
@@ -32,7 +33,13 @@ int main(int argc, char **argv)
     ROS_DEBUG("Debug: init uds.");
     UDS uds(Interface::onSignaling);
     uds.start(UDS_URI);
-    uds.join();
+
+    ROS_INFO("Info: ROS Car Interface Ready.");
+    while (true)
+    {
+        ROS_INFO("ROS Car Interface Sleeping...");
+        this_thread::sleep_for(chrono::seconds(29));
+    }
 
     return 0;
 }
