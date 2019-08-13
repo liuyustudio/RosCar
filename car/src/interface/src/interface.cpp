@@ -14,15 +14,10 @@ namespace car
 namespace interface
 {
 
-std::map<const char *, Interface::FUNC_ONSIG> Interface::gSigFuncMap;
 ros::ServiceClient Interface::gSvrInfo;
 
 void Interface::init(ros::NodeHandle &nh)
 {
-    gSigFuncMap[RCMP::SIG_PING] = &onSigPing;
-    gSigFuncMap[RCMP::SIG_PONG] = &onSigPong;
-    gSigFuncMap[RCMP::SIG_INFO] = &onSigInfo;
-
     gSvrInfo = nh.serviceClient<pilot::Info>("info");
 }
 
@@ -30,16 +25,14 @@ bool Interface::onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
     const char *cmd = sig[RCMP::FIELD_CMD].GetString();
 
-    auto onSigFuncPare = gSigFuncMap.find(cmd);
-    if (onSigFuncPare == gSigFuncMap.end())
-    {
-        // unsupported signaling
-        ROS_ERROR("Err: unsupported signaling(cmd: [%s])", cmd);
-        return false;
-    }
-
-    auto onSigFunc = onSigFuncPare->second;
-    return onSigFunc(sess, sig);
+    if (strcasecmp(cmd, RCMP::SIG_PING) == 0)
+        return onSigPing(sess, sig);
+    else if (strcasecmp(cmd, RCMP::SIG_PONG) == 0)
+        return onSigPong(sess, sig);
+    else if (strcasecmp(cmd, RCMP::SIG_INFO) == 0)
+        return onSigInfo(sess, sig);
+    else
+        return false; // unknown signaling cmd
 }
 
 bool Interface::onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig)

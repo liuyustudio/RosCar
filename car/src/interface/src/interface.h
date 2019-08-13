@@ -16,8 +16,6 @@ namespace interface
 class Interface
 {
 protected:
-    typedef bool (*FUNC_ONSIG)(UDS::SESSION_t &sess, rapidjson::Document &sig);
-
     Interface(){};
 
 public:
@@ -34,7 +32,6 @@ protected:
 
     static bool sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
-    static std::map<const char *, FUNC_ONSIG> gSigFuncMap;
     static ros::ServiceClient gSvrInfo;
 };
 

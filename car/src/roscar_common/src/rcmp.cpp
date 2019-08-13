@@ -203,8 +203,15 @@ int RCMP::parse(void *pBuf, int &len, Document &doc)
 
 const char *RCMP::getRespCmd(const char *cmd)
 {
-    auto respCmd = gSigRespCmdMap.find(cmd);
-    return (respCmd != gSigRespCmdMap.end()) ? respCmd->second : nullptr;
+    for (auto &item : gSigRespCmdMap)
+    {
+        if (strcasecmp(item.first, cmd))
+            continue;
+
+        return item.second;
+    }
+
+    return nullptr;
 }
 
 Document &RCMP::convertToResp(rapidjson::Document &sig,
@@ -212,10 +219,15 @@ Document &RCMP::convertToResp(rapidjson::Document &sig,
                               const char *errmsg,
                               rapidjson::Value *payload)
 {
-    const char *respCmd = RCMP::getRespCmd(sig[FIELD_CMD].GetString());
+    const char *reqCmd = sig[FIELD_CMD].GetString();
+    const char *respCmd = RCMP::getRespCmd(reqCmd);
     assert(respCmd);
 
     auto &alloc = sig.GetAllocator();
+
+    // change cmd
+    sig.RemoveMember(FIELD_CMD);
+    sig.AddMember(Value::StringRefType(FIELD_CMD), Value::StringRefType(respCmd), alloc);
 
     // errno
     if (sig.HasMember(FIELD_ERRNO))
@@ -291,7 +303,6 @@ int RCMP::fillFrame(void *buf, const int len, std::string &&sig)
 
 int RCMP::fillFrame(void *buf, const int len, rapidjson::Document &sig)
 {
-    string jsonStr = getJson(sig);
     return fillFrame(buf, len, getJson(sig));
 }
 
@@ -377,23 +388,21 @@ bool RCMP::verifySig(Document &doc)
     if (strcasecmp(cmdField, SIG_LOGIN) == 0)
         pValidator = gValidatorMap[SIG_LOGIN];
     else if (strcasecmp(cmdField, SIG_LOGIN_RESP) == 0)
-        pValidator = gValidatorMap[SIG_LOGIN];
+        pValidator = gValidatorMap[SIG_LOGIN_RESP];
     else if (strcasecmp(cmdField, SIG_LOGOUT) == 0)
-        pValidator = gValidatorMap[SIG_LOGIN];
+        pValidator = gValidatorMap[SIG_LOGOUT];
     else if (strcasecmp(cmdField, SIG_LOGOUT_RESP) == 0)
-        pValidator = gValidatorMap[SIG_LOGIN];
+        pValidator = gValidatorMap[SIG_LOGOUT_RESP];
     else if (strcasecmp(cmdField, SIG_PING) == 0)
-        pValidator = gValidatorMap[SIG_LOGIN];
+        pValidator = gValidatorMap[SIG_PING];
     else if (strcasecmp(cmdField, SIG_PONG) == 0)
-        pValidator = gValidatorMap[SIG_LOGIN];
+        pValidator = gValidatorMap[SIG_PONG];
     else if (strcasecmp(cmdField, SIG_INFO) == 0)
-        pValidator = gValidatorMap[SIG_LOGIN];
+        pValidator = gValidatorMap[SIG_INFO];
     else if (strcasecmp(cmdField, SIG_INFO_RESP) == 0)
-        pValidator = gValidatorMap[SIG_LOGIN];
+        pValidator = gValidatorMap[SIG_INFO_RESP];
     else
         return false; // unknown signaling cmd
-
-    // TODO: Debug HERE...
 
     // verify format
     assert(pValidator);
