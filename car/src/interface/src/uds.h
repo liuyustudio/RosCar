@@ -33,6 +33,10 @@ public:
         unsigned int sendBufEnd = 0;
         char recvBuf[RECV_BUFFER_CAPACITY];
         char sendBuf[SEND_BUFFER_CAPACITY];
+
+        SESSION() { init(); }
+        inline void init() { soc = events = recvBufPos = recvBufEnd = sendBufPos = sendBufEnd = 0; }
+        inline bool empty() { return sendBufPos == sendBufEnd; }
     } SESSION_t;
 
     typedef bool (*FUNC_ONSIGLAING)(UDS::SESSION_t &sess, rapidjson::Document &sig);
@@ -40,11 +44,13 @@ public:
     UDS(FUNC_ONSIGLAING cb_onSig);
     virtual ~UDS();
 
-    bool start(const char * udsUri);
+    bool start(const char *udsUri);
     void stop();
 
-    inline void join() {
-        for (auto &t: mThreadArray) {
+    inline void join()
+    {
+        for (auto &t : mThreadArray)
+        {
             t.join();
         }
     }

@@ -212,12 +212,18 @@ bool UDSClient::onSoc(unsigned int socEvents, SESSION_t &sess)
     if (socEvents & EPOLLIN)
     {
         // available for read
-        return onRead(sess);
+        if (!onRead(sess))
+        {
+            return false;
+        }
     }
     if (socEvents & EPOLLOUT)
     {
         // available for write
-        return onWrite(sess);
+        if (!onWrite(sess))
+        {
+            return false;
+        }
     }
     if (socEvents & (EPOLLRDHUP | EPOLLHUP))
     {
@@ -231,6 +237,8 @@ bool UDSClient::onSoc(unsigned int socEvents, SESSION_t &sess)
         ROS_ERROR("Err: socket[%d]\n", sess.soc);
         return false;
     }
+
+    return true;
 }
 
 bool UDSClient::onRead(SESSION_t &sess)

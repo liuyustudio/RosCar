@@ -72,30 +72,15 @@ bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
 
 bool Interface::sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    // get corresponding json string
-    string jsonSig = RCMP::getJson(sig);
-
-    // check empty send buffer size
-    auto len = jsonSig.length();
-    if (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd < len)
+    // wrap signaling in RCMPFrame, then put it into sending buffer
+    int nRet = RCMP::fillFrame(sess.sendBuf + sess.sendBufEnd,
+                               RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd,
+                               sig);
+    if (!nRet)
     {
-        if (sess.sendBufPos == 0 ||
-            (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd + sess.sendBufPos < len))
-        {
-            // send buffer full
-            ROS_DEBUG("Debug: send buffer fulll(soc: [%d]", sess.soc);
-            return false;
-        }
-
-        // defrag buffer
-        int bufLen = sess.sendBufEnd - sess.sendBufPos;
-        memmove(sess.sendBuf, sess.sendBuf + sess.sendBufPos, bufLen);
-        sess.sendBufPos = 0;
-        sess.sendBufEnd = bufLen;
+        ROS_ERROR("Fail to wrap signaling in RCMPFrame, then put it into sending buffer. Error: %d", nRet);
+        return false;
     }
-
-    memcpy(sess.sendBuf + sess.sendBufEnd, jsonSig.c_str(), len);
-    sess.sendBufEnd += len;
 
     return true;
 }

@@ -221,12 +221,18 @@ bool UDS::onSession(unsigned int socEvents, SESSION_t &sess)
     if (socEvents & EPOLLIN)
     {
         // available for read
-        return onRead(sess);
+        if (!onRead(sess))
+        {
+            return false;
+        }
     }
     if (socEvents & EPOLLOUT)
     {
         // available for write
-        return onWrite(sess);
+        if (!onWrite(sess))
+        {
+            return false;
+        }
     }
     if (socEvents & (EPOLLRDHUP | EPOLLHUP))
     {
@@ -240,6 +246,8 @@ bool UDS::onSession(unsigned int socEvents, SESSION_t &sess)
         ROS_ERROR("Err: socket[%d]", sess.soc);
         return false;
     }
+
+    return true;
 }
 
 bool UDS::onRead(SESSION_t &sess)
@@ -308,10 +316,10 @@ bool UDS::onRead(SESSION_t &sess)
     }
 
     // are there data in send buffer?
-    if (sess.sendBufPos ^ sess.sendBufEnd)
+    if (!sess.empty())
     {
         // set epoll write event for this socket
-        if (0 == sess.events & EPOLLOUT)
+        if (0 == (sess.events & EPOLLOUT))
         {
             sess.events |= EPOLLOUT;
 
@@ -326,6 +334,8 @@ bool UDS::onRead(SESSION_t &sess)
             }
         }
     }
+
+    return true;
 }
 
 bool UDS::onWrite(SESSION_t &sess)
@@ -353,9 +363,10 @@ bool UDS::onWrite(SESSION_t &sess)
         sess.recvBufPos = sess.recvBufEnd = 0;
 
         // remove epoll write event
+        sess.events &= (~EPOLLOUT);
         epoll_event event;
         event.data.fd = sess.soc;
-        event.events = sess.events & (~EPOLLOUT);
+        event.events = sess.events;
         if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
         {
             ROS_ERROR("Err: Failed to modify socket[%d] epoll event fail. Error[%d]: %s",
@@ -363,6 +374,8 @@ bool UDS::onWrite(SESSION_t &sess)
             return false;
         }
     }
+
+    return true;
 }
 
 int UDS::parseSig(SESSION_t &sess, rapidjson::Document &doc)
