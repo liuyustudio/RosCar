@@ -44,6 +44,7 @@ protected:
 
     void sendRequest(std::string &req);
     bool onCmd_Info(std::vector<std::string> &cmd);
+    bool onSigInfoResp(rapidjson::Document &sig);
 };
 
 } // namespace cli

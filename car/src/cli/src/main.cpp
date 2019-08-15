@@ -25,18 +25,20 @@ Cli cli(sendSignaling);
 
 int main(int argc, char **argv)
 {
-    ROS_INFO("\nROS Car CLI\n\n");
+    ROS_INFO("\n\nROS Car CLI\n");
 
     char *line = nullptr;
     bool ret = true;
 
     // init udsClient
+    ROS_DEBUG("init udsClient");
     if (!udsClient.start(UNIX_DOMAIN_SOCKET_URI))
     {
         ROS_ERROR("Err: init udsClient fail.");
         return EXIT_FAILURE;
     }
 
+    ROS_DEBUG("start main routine");
     while (true)
     {
         if (!(line = readline("> ")))
@@ -54,21 +56,24 @@ int main(int argc, char **argv)
         free(line);
         if (!ret)
         {
-            // routine finished
+            // got quit signal
+            ROS_INFO("got quit signal");
             break;
         }
     }
 
-    ROS_INFO("\nROS Car CLI: Bye\n\n");
+    ROS_INFO("\n\nROS Car CLI: Bye\n");
 }
 
 bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig)
 {
+    ROS_DEBUG("new sig has been received");
     return cli.onSignaling(sess, sig);
 }
 
 bool sendSignaling(std::string &sig)
 {
+    ROS_DEBUG("send sig: %s", sig.c_str());
     return udsClient.sendRawString(sig);
 }
 

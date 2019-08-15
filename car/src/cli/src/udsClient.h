@@ -1,6 +1,7 @@
 #ifndef _ROSCAR_CAR_CLI_UDS_H_
 #define _ROSCAR_CAR_CLI_UDS_H_
 
+#include <string.h>
 #include <mutex>
 #include <thread>
 #include <string>
@@ -36,6 +37,34 @@ public:
         unsigned int sendBufEnd = 0;
         char recvBuf[RECV_BUFFER_CAPACITY];
         char sendBuf[SEND_BUFFER_CAPACITY];
+
+        inline bool isSendBufFull() { return SEND_BUFFER_CAPACITY == sendBufEnd; }
+        inline bool isRecvBufFull() { return RECV_BUFFER_CAPACITY == recvBufEnd; }
+        inline bool defragRecvBuf()
+        {
+            if (0 == recvBufPos)
+            {
+                return isSendBufFull() ? false : true;
+            }
+
+            memmove(recvBuf, recvBuf + recvBufPos, recvBufPos);
+            recvBufEnd -= recvBufPos;
+            recvBufPos = 0;
+            return true;
+        }
+        inline bool defragSendBuf()
+        {
+            if (0 == sendBufPos)
+            {
+                return isSendBufFull() ? false : true;
+            }
+
+            memmove(sendBuf, sendBuf + sendBufPos, sendBufPos);
+            sendBufEnd -= sendBufPos;
+            sendBufPos = 0;
+            return true;
+        }
+        inline bool defrag() { return defragRecvBuf() && defragSendBuf(); }
     } SESSION_t;
 
     typedef bool (*FUNC_ONSIGLAING)(UDSClient::SESSION_t &sess, rapidjson::Document &sig);
@@ -55,9 +84,9 @@ protected:
     bool onSoc(unsigned int socEvents, SESSION_t &sess);
     bool onRead(SESSION_t &sess);
     bool onWrite(SESSION_t &sess);
-    bool parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig);
-    bool sendSignalingToBuffer(SESSION_t &sess, rapidjson::Document &sig);
-    bool sendSignalingToBuffer(SESSION_t &sess, std::string &sig);
+    int parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig);
+    bool sendToBuf(SESSION_t &sess, rapidjson::Document &sig);
+    bool sendToBuf(SESSION_t &sess, std::string &sig);
     bool setWriteFlag(SESSION_t &sess, bool writeFlag = true);
 
     std::vector<std::thread> mThreadArray;
