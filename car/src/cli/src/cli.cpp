@@ -25,9 +25,20 @@ namespace cli
 
 bool Cli::onCmd(vector<string> &cmd)
 {
-    if (strcasecmp(cmd[0].c_str(), "info") == 0)
+    if (0 == strcasecmp(cmd[0].c_str(), "info"))
     {
         return onCmd_Info(cmd);
+    }
+    else if ((0 == strcasecmp(cmd[0].c_str(), "q")) ||
+             (0 == strcasecmp(cmd[0].c_str(), "quit")))
+    {
+        ROS_DEBUG("[Cli::onCmd] Cli::onCmdquit");
+        return false;
+    }
+    else
+    {
+        ROS_DEBUG_STREAM("[Cli::onCmd] unsupported command: " << cmd[0]);
+        return true;
     }
 }
 
@@ -77,9 +88,9 @@ bool Cli::onSigInfoResp(Document &sig)
     }
 
     Value &&payload = sig[RCMP::FIELD_PAYLOAD].GetObject();
-    const char *id = sig[RCMP::FIELD_INFORESP_ID].GetString();
-    const char *type = sig[RCMP::FIELD_INFORESP_TYPE].GetString();
-    const char *name = sig[RCMP::FIELD_INFORESP_NAME].GetString();
+    const char *id = payload[RCMP::FIELD_INFORESP_ID].GetString();
+    const char *type = payload[RCMP::FIELD_INFORESP_TYPE].GetString();
+    const char *name = payload[RCMP::FIELD_INFORESP_NAME].GetString();
 
     printf("\tinfo.id: %s\n", id);
     printf("\tinfo.type: %s\n", type);
