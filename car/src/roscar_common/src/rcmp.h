@@ -2,10 +2,14 @@
 #define _ROSCAR_CAR_ROSCARCOMMON_RCMP_H_
 
 #include <assert.h>
+#include <string.h>
+#include <map>
 
 #include "rapidjson/document.h"
 #include "rapidjson/schema.h"
 #include "rapidjson/stringbuffer.h"
+
+#include "roscar_common/error.h"
 
 namespace roscar
 {
@@ -21,27 +25,29 @@ public:
     static const char RCMP_STARTFLAG = 0x5A;
     static const int RCMP_VERSION = 1;
     static const int RCMP_MIN_FRAME_SIZE = RCMP_FRAMEHEADSIZE;
-    static const int RCMP_MAXPAYLOAD = 0x10000 - RCMP_FRAMEHEADSIZE;
+    static const int RCMP_MAXPAYLOAD = 0x1000 - RCMP_FRAMEHEADSIZE;
 
     static const char *FIELD_CMD;
     static const char *FIELD_SEQ;
+    static const char *FIELD_ERRNO;
+    static const char *FIELD_ERRMSG;
     static const char *FIELD_PAYLOAD;
     static const char *FIELD_LOGIN_VER;
     static const char *FIELD_LOGIN_TYPE;
     static const char *FIELD_LOGIN_ID;
+    static const char *FIELD_INFORESP_ID;
+    static const char *FIELD_INFORESP_TYPE;
+    static const char *FIELD_INFORESP_NAME;
 
+    static const char *SIGNALING;
     static const char *SIG_LOGIN;
     static const char *SIG_LOGIN_RESP;
     static const char *SIG_LOGOUT;
     static const char *SIG_LOGOUT_RESP;
     static const char *SIG_PING;
     static const char *SIG_PONG;
-    static const char *SIG_CONTROL;
-    static const char *SIG_CONTROL_RESP;
-    static const char *SIG_MT;
-    static const char *SIG_MT_RESP;
-    static const char *SIG_REPORT;
-    static const char *SIG_REPORT_RESP;
+    static const char *SIG_INFO;
+    static const char *SIG_INFO_RESP;
 
     static const char *SCHEMA_SIG;
     static const char *SCHEMA_SIG_LOGIN;
@@ -50,13 +56,15 @@ public:
     static const char *SCHEMA_SIG_LOGOUT_RESP;
     static const char *SCHEMA_SIG_PING;
     static const char *SCHEMA_SIG_PONG;
+    static const char *SCHEMA_SIG_INFO;
+    static const char *SCHEMA_SIG_INFO_RESP;
 
     typedef struct FRAME
     {
         unsigned char startFlag;
         unsigned char reserved;
         unsigned char length[2];
-        char *payload;
+        char payload[0];
 
         void setLen(int len)
         {
@@ -68,12 +76,21 @@ public:
         {
             return (length[0] << 8) | length[1];
         }
+        void init(const void *framePayload, const int len)
+        {
+            assert(RCMP_MAXPAYLOAD >= len);
+            startFlag = RCMP_STARTFLAG;
+            reserved = 0;
+            setLen(RCMP_FRAMEHEADSIZE + len);
+            memcpy(payload, framePayload, len);
+        }
     } FRAME_t;
 
-    RCMP();
-    virtual ~RCMP();
-
-    rapidjson::SchemaDocument * loadSchema(const char * schema);
+    class Initializer
+    {
+    public:
+        Initializer();
+    };
 
     /**
      * parse RCMP signaling from given buffer
@@ -83,34 +100,69 @@ public:
      * 
      * return: corresponding error code
      */
-    int parse(void *pBuf, int &len, rapidjson::Document &doc);
+    static int parse(void *pBuf, int &len, rapidjson::Document &doc);
 
     /**
-     * convert given signaling object to PONG signaling.
+     * give request cmd and retrive corresponding resp cmd
      * 
-     * sig: in - original signaling; out - PONG signaling
+     * cmd: request cmd
+     * 
+     * return: corresponding resp cmd if it has be found; otherwise nullptr 
      */
-    void convertToPong(rapidjson::Document &sig);
+    static const char *getRespCmd(const char *cmd);
+
+    /**
+     * convert given request signaling object to corresponding response signaling.
+     * 
+     * sig: in - request signaling; out - corresponding response signaling
+     * err: error number
+     * errmsg: error description
+     * payload: payload of response signaling
+     * 
+     * return: response signaling object(same as request signaling object).
+     */
+    static rapidjson::Document &convertToResp(rapidjson::Document &sig,
+                                              const int err,
+                                              const char *errmsg,
+                                              rapidjson::Value *payload = nullptr);
+    static rapidjson::Document &convertToResp(rapidjson::Document &sig,
+                                              rapidjson::Value *payload = nullptr)
+    {
+        convertToResp(sig, SUCCESS, "", payload);
+    }
+
+    /**
+     * @brief Get the Json string from given signaling object
+     * 
+     * @param sig: valid signaling object
+     * @return std::string: corresponding Json string 
+     */
+    static std::string getJson(rapidjson::Document &sig);
+
+    /**
+     * @brief 
+     * 
+     * @param buf buffer for store frame
+     * @param len buffer size
+     * @param payload frame payload
+     * @return int: frame length, in bytes, if success; otherwrise return 0.
+     */
+    static int fillFrame(void *buf, const int len, const void *payload, const int payloadLen);
+    static int fillFrame(void *buf, const int len, std::string &sig);
+    static int fillFrame(void *buf, const int len, std::string &&sig);
+    static int fillFrame(void *buf, const int len, rapidjson::Document &sig);
 
 protected:
-    rapidjson::SchemaDocument * mpSchema_Sig;
-    rapidjson::SchemaDocument * mpSchema_SigLogin;
-    rapidjson::SchemaDocument * mpSchema_SigLoginResp;
-    rapidjson::SchemaDocument * mpSchema_SigLogout;
-    rapidjson::SchemaDocument * mpSchema_SigLogoutResp;
-    rapidjson::SchemaDocument * mpSchema_SigPing;
-    rapidjson::SchemaDocument * mpSchema_SigPong;
+    static Initializer gInitializer;
+    static std::map<const char *, const char *> gSigRespCmdMap;
 
-    rapidjson::SchemaValidator * mpSchemaValidator_Sig;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLogin;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLoginResp;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLogout;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigLogoutResp;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigPing;
-    rapidjson::SchemaValidator * mpSchemaValidator_SigPong;
+    static std::map<const char *, rapidjson::SchemaDocument *> gSchemaMap;
+    static std::map<const char *, rapidjson::SchemaValidator *> gValidatorMap;
 
-    int verifyFrame(FRAME_t *pFrame, int len);
-    bool verifySig(rapidjson::Document &doc);
+    static void init();
+    static void initSchemaValidator(const char *name, const char *schema);
+    static int verifyFrame(FRAME_t *pFrame, int len);
+    static bool verifySig(rapidjson::Document &doc);
 };
 
 } // namespace roscar_common

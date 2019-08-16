@@ -1,6 +1,7 @@
 #include "interface.h"
 
-#include "rapidjson/writer.h"
+#include "roscar_common/rcmp.h"
+#include "pilot/Info.h"
 
 using namespace std;
 using namespace rapidjson;
@@ -13,86 +14,77 @@ namespace car
 namespace interface
 {
 
+ros::ServiceClient Interface::gSvrInfo;
+
+void Interface::init(ros::NodeHandle &nh)
+{
+    gSvrInfo = nh.serviceClient<pilot::Info>("info");
+}
+
 bool Interface::onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
     const char *cmd = sig[RCMP::FIELD_CMD].GetString();
 
-    if (strcasecmp(cmd, RCMP::SIG_LOGIN_RESP))
-    {
-        // In current version of code, skip signaling SIG_LOGIN_RESP.
-        ROS_DEBUG("Debug: In current version of code, skip signaling SIG_LOGIN_RESP.");
-        return true;
-    }
-    else if (strcasecmp(cmd, RCMP::SIG_PING))
-    {
+    if (strcasecmp(cmd, RCMP::SIG_PING) == 0)
         return onSigPing(sess, sig);
-    }
-    else if (strcasecmp(cmd, RCMP::SIG_PONG))
-    {
+    else if (strcasecmp(cmd, RCMP::SIG_PONG) == 0)
         return onSigPong(sess, sig);
-    }
-    else if (strcasecmp(cmd, RCMP::SIG_LOGIN))
-    {
-        // these signaling should not be received
-        ROS_ERROR("Err: wrong signaling(cmd: [%s]", cmd);
-        return false;
-    }
-
-    // unsupported singaling
-    ROS_ERROR("Err: unsupported signaling(cmd: [%s]", cmd);
-    return false;
+    else if (strcasecmp(cmd, RCMP::SIG_INFO) == 0)
+        return onSigInfo(sess, sig);
+    else
+        return false; // unknown signaling cmd
 }
 
 bool Interface::onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    mRcmp.convertToPong(sig);
-
-    StringBuffer buffer;
-    Writer<StringBuffer> writer(buffer);
-    sig.Accept(writer);
-    const char *payload = buffer.GetString();
-
-    // send signaling via append it to send buffer
-    return sendSignaling(sess, buffer);
+    return sendToBuf(sess, RCMP::convertToResp(sig));
 }
 
 bool Interface::onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    // In current version of code, we just skip signaling PONG.
-    ROS_DEBUG("Debug: In current version of code, skip signaling PONG.");
+    ROS_DEBUG("[Interface::onSigPong] recv PONG.");
     return true;
 }
 
-bool Interface::sendSignaling(UDS::SESSION_t &sess, StringBuffer &buffer)
+bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    auto len = buffer.GetSize();
-
-    // check empty send buffer size
-    if (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd < len)
+    pilot::Info info;
+    if (!gSvrInfo.call(info))
     {
-        if (sess.sendBufPos == 0)
-        {
-            // send buffer full
-            ROS_DEBUG("Debug: send buffer fulll(soc: [%d]", sess.soc);
-            return false;
-        }
-
-        // defrag buffer
-        int bufLen = sess.sendBufEnd - sess.sendBufPos;
-        memmove(sess.sendBuf, sess.sendBuf + sess.sendBufPos, bufLen);
-        sess.sendBufPos = 0;
-        sess.sendBufEnd = bufLen;
-
-        if (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd < len)
-        {
-            // buffer still full after defrag send buffer
-            ROS_DEBUG("Debug: send buffer fulll(soc: [%d]", sess.soc);
-            return false;
-        }
+        ROS_ERROR("[Interface::onSigInfo] Fail to call service: [pilot::Info]");
+        return false;
     }
 
-    memcpy(sess.sendBuf + sess.sendBufEnd, buffer.GetString(), len);
-    sess.sendBufEnd += len;
+    auto &alloc = sig.GetAllocator();
+    Value payload(kObjectType);
+    payload.AddMember(Value::StringRefType(RCMP::FIELD_INFORESP_ID),
+                      Value::StringRefType(info.response.id.c_str()),
+                      alloc);
+    payload.AddMember(Value::StringRefType(RCMP::FIELD_INFORESP_TYPE),
+                      Value::StringRefType(info.response.type.c_str()),
+                      alloc);
+    payload.AddMember(Value::StringRefType(RCMP::FIELD_INFORESP_NAME),
+                      Value::StringRefType(info.response.name.c_str()),
+                      alloc);
+
+    return sendToBuf(sess, RCMP::convertToResp(sig, &payload));
+}
+
+bool Interface::sendToBuf(UDS::SESSION_t &sess, rapidjson::Document &sig)
+{
+    // wrap signaling in RCMPFrame, then put it into sending buffer
+    int nRet = RCMP::fillFrame(sess.sendBuf + sess.sendBufEnd,
+                               RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd,
+                               sig);
+    if (0 == nRet)
+    {
+        ROS_ERROR("[Interface::sendToBuf] fill buffer fail. Error: %d", nRet);
+        return false;
+    }
+
+    sess.sendBufEnd += nRet;
+
+    return true;
 }
 
 } // namespace interface

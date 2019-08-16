@@ -15,7 +15,10 @@ int main(int argc, char **argv) {
   pilot::Info srv;
   if (client.call(srv))
   {
-    ROS_INFO("Info: %s", srv.response.jsonInfo.c_str());
+    ROS_INFO("Info:");
+    ROS_INFO("  id:   %s", srv.response.id.c_str());
+    ROS_INFO("  type: %s", srv.response.type.c_str());
+    ROS_INFO("  name: %s", srv.response.id.c_str());
   }
   else
   {

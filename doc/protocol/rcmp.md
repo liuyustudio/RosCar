@@ -110,13 +110,8 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 | Ping       | 心跳测试       |
 | Pong       | 心跳测试回复   |
 | ---------- | -------------- |
-| Ctl        | 控制信令。     |
-| CtlResp    | 控制信令回复。 |
-| ---------- | -------------- |
-| Mt         | 监控信令。     |
-| MtResp     | 监控信令回复。 |
-| Report     | 上报信令。     |
-| ReportResp | 上报信令回复。 |
+| Info       | 请求设备信息     |
+| InfoResp   | 请求设备信息回复  |
 
 各信令其具体定义见后续章节。
 
@@ -249,45 +244,13 @@ payload 含义：
 
 无
 
-### 4.4. Ctl 与 CtlResp
+### 4.4. Info 与 InfoResp
 
-Ctl 信令格式定义如下：
-
-``` json
-{
-  "cmd": "Ctl",
-  "seq": 0,
-  "payload": null
-}
-```
-
-payload 含义：
-
-待定
-
-CtlResp 信令格式定义如下：
-
-```json
-{
-  "cmd": "CtlResp",
-  "seq": 0,
-  "errno": 0,
-  "errmsg": "",
-  "payload": null
-}
-```
-
-payload 含义：
-
-待定
-
-### 4.5. Mt 与 MtResp
-
-Mt 信令格式定义如下：
+Info 信令格式定义如下：
 
 ``` json
 {
-  "cmd": "Mt",
+  "cmd": "Info",
   "seq": 0,
   "payload": null
 }
@@ -295,52 +258,26 @@ Mt 信令格式定义如下：
 
 payload 含义：
 
-待定
+无
 
-MtResp 信令格式定义如下：
+InfoResp 信令格式定义如下：
 
 ```json
 {
-  "cmd": "MtResp",
+  "cmd": "InfoResp",
   "seq": 0,
   "errno": 0,
   "errmsg": "",
-  "payload": null
+  "payload": {
+    "id": "",
+    "type": "",
+    "name": ""
+  }
 }
 ```
 
 payload 含义：
 
-待定
-
-### 4.6. Report 与 ReportResp
-
-Report 信令格式定义如下：
-
-``` json
-{
-  "cmd": "Report",
-  "seq": 0,
-  "payload": null
-}
-```
-
-payload 含义：
-
-待定
-
-ReportResp 信令格式定义如下：
-
-```json
-{
-  "cmd": "ReportResp",
-  "seq": 0,
-  "errno": 0,
-  "errmsg": "",
-  "payload": null
-}
-```
-
-payload 含义：
-
-待定
+* id: 设备 ID。
+* type: 设备类型。
+* name: 设备名。

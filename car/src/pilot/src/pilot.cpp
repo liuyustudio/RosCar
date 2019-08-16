@@ -1,17 +1,17 @@
 #include "ros/ros.h"
 #include "pilot/Info.h"
 
-bool info(pilot::Info::Request  &req,
+bool info(pilot::Info::Request &req,
           pilot::Info::Response &res)
 {
-  res.jsonInfo = ""
-    "{"
-      "\"id\":\"string of id\","
-      "\"type\":\"string of type\","
-      "\"name\":\"string of name\""
-    "}";
-  ROS_INFO("request info");
-  ROS_INFO("sending back response: [%s]", res.jsonInfo.c_str());
+  ROS_DEBUG("request device info");
+
+  res.id = "string of id";
+  res.type = "string of type";
+  res.name = "string of name";
+
+  ROS_DEBUG("sending info back");
+
   return true;
 }
 

@@ -1,2 +1,4 @@
 ---
-string jsonInfo
+string id
+string type
+string name
