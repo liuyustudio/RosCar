@@ -30,7 +30,7 @@ protected:
     static bool onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig);
     static bool onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
-    static bool sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool sendToBuf(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
     static ros::ServiceClient gSvrInfo;
 };

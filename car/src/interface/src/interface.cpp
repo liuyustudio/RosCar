@@ -37,12 +37,12 @@ bool Interface::onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
 
 bool Interface::onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    return sendSignaling(sess, RCMP::convertToResp(sig));
+    return sendToBuf(sess, RCMP::convertToResp(sig));
 }
 
 bool Interface::onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
-    ROS_DEBUG("Debug: recv PONG.");
+    ROS_DEBUG("[Interface::onSigPong] recv PONG.");
     return true;
 }
 
@@ -51,7 +51,7 @@ bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
     pilot::Info info;
     if (!gSvrInfo.call(info))
     {
-        ROS_ERROR("Fail to call service: [pilot::Info]");
+        ROS_ERROR("[Interface::onSigInfo] Fail to call service: [pilot::Info]");
         return false;
     }
 
@@ -67,20 +67,22 @@ bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
                       Value::StringRefType(info.response.name.c_str()),
                       alloc);
 
-    return sendSignaling(sess, RCMP::convertToResp(sig, &payload));
+    return sendToBuf(sess, RCMP::convertToResp(sig, &payload));
 }
 
-bool Interface::sendSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
+bool Interface::sendToBuf(UDS::SESSION_t &sess, rapidjson::Document &sig)
 {
     // wrap signaling in RCMPFrame, then put it into sending buffer
     int nRet = RCMP::fillFrame(sess.sendBuf + sess.sendBufEnd,
                                RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd,
                                sig);
-    if (!nRet)
+    if (0 == nRet)
     {
-        ROS_ERROR("Fail to wrap signaling in RCMPFrame, then put it into sending buffer. Error: %d", nRet);
+        ROS_ERROR("[Interface::sendToBuf] fill buffer fail. Error: %d", nRet);
         return false;
     }
+
+    sess.sendBufEnd += nRet;
 
     return true;
 }
