@@ -36,7 +36,7 @@ public:
 
         SESSION() { init(); }
         inline void init() { soc = events = recvBufPos = recvBufEnd = sendBufPos = sendBufEnd = 0; }
-        inline bool empty() { return sendBufPos == sendBufEnd; }
+        inline bool isSendBufEmpty() { return sendBufPos == sendBufEnd; }
     } SESSION_t;
 
     typedef bool (*FUNC_ONSIGLAING)(UDS::SESSION_t &sess, rapidjson::Document &sig);
