@@ -260,11 +260,19 @@ bool UDSClient::onRead(SESSION_t &sess)
                     sess.recvBuf + sess.recvBufEnd,
                     bufSize,
                     0);
-    if (nRet < 0)
+    if (nRet <= 0)
     {
-        ROS_ERROR("[UDSClient::onRead] client[%d] read fail. Error[%d]: %s",
-                  sess.soc, errno, strerror(errno));
-        return false;
+        if (nRet == 0)
+        {
+            ROS_DEBUG("[UDSClient::onRead] session closed by peer(soc[%d])", sess.soc);
+            return false;
+        }
+        else
+        {
+            ROS_ERROR("[UDSClient::onRead] client[%d] read fail. Error[%d]: %s",
+                      sess.soc, errno, strerror(errno));
+            return false;
+        }
     }
     sess.recvBufEnd += nRet;
 
