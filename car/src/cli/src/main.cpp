@@ -9,9 +9,11 @@
 #include <ros/ros.h>
 #include "cli.h"
 #include "udsClient.h"
+#include "roscar_common/rcmp.h"
 
 using namespace std;
 using namespace roscar::car::cli;
+using namespace roscar::car::roscar_common;
 
 static const char *DELIM = " ";
 static const char *UNIX_DOMAIN_SOCKET_URI = "/tmp/.roscar.car.interface.soc";
@@ -67,7 +69,7 @@ int main(int argc, char **argv)
 
 bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig)
 {
-    ROS_DEBUG("new sig has been received");
+    ROS_DEBUG_STREAM("recv sig: " << RCMP::getJson(sig));
     return cli.onSignaling(sess, sig);
 }
 
