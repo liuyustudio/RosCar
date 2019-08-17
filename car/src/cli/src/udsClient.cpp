@@ -350,6 +350,8 @@ bool UDSClient::onWrite(SESSION_t &sess)
         return false;
     }
 
+    // ROS_DEBUG("[UDSClient::onWrite] send %d bytes", nRet);
+
     sess.sendBufPos += nRet;
     if (sess.recvBufPos == sess.recvBufEnd)
     {
@@ -440,7 +442,7 @@ bool UDSClient::setWriteFlag(SESSION_t &sess, bool writeFlag)
         // set epoll write flag for this socket
         if (!(sess.events & EPOLLOUT))
         {
-            ROS_DEBUG("[UDSClient::setWriteFlag] set send flag");
+            // ROS_DEBUG("[UDSClient::setWriteFlag] set send flag");
             sess.events |= EPOLLOUT;
 
             struct epoll_event event;
@@ -459,7 +461,7 @@ bool UDSClient::setWriteFlag(SESSION_t &sess, bool writeFlag)
         // remove epoll write flag from this socket
         if (sess.events & EPOLLOUT)
         {
-            ROS_DEBUG("[UDSClient::setWriteFlag] remove send flag");
+            // ROS_DEBUG("[UDSClient::setWriteFlag] remove send flag");
             sess.events &= ~EPOLLOUT;
 
             struct epoll_event event;

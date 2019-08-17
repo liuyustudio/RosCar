@@ -2,9 +2,13 @@
 #include <exception>
 #include <sstream>
 #include <string>
+#include "ros/ros.h"
 #include "rapidjson/writer.h"
+#include "rapidjson/error/en.h"
 #include "const.h"
 #include "error.h"
+
+#include "schemaSig.cpp"
 
 using namespace std;
 using namespace rapidjson;
@@ -27,6 +31,9 @@ const char *RCMP::FIELD_LOGIN_ID = "id";
 const char *RCMP::FIELD_INFORESP_ID = "id";
 const char *RCMP::FIELD_INFORESP_TYPE = "type";
 const char *RCMP::FIELD_INFORESP_NAME = "name";
+const char *RCMP::FIELD_MOVE_ANGLE = "angle";
+const char *RCMP::FIELD_MOVE_POWER = "power";
+const char *RCMP::FIELD_MOVE_DURATION = "duration";
 
 const char *RCMP::SIGNALING = "Signaling";
 const char *RCMP::SIG_LOGIN = "Login";
@@ -37,121 +44,8 @@ const char *RCMP::SIG_PING = "Ping";
 const char *RCMP::SIG_PONG = "Pong";
 const char *RCMP::SIG_INFO = "Info";
 const char *RCMP::SIG_INFO_RESP = "InfoResp";
-
-const char *RCMP::SCHEMA_SIG = ""
-                               "{"
-                               "   \"type\":\"object\","
-                               "   \"properties\":{"
-                               "       \"cmd\":{"
-                               "           \"type\":\"string\""
-                               "       },"
-                               "       \"seq\":{"
-                               "           \"type\":\"integer\""
-                               "       }"
-                               "   },"
-                               "   \"required\":[\"cmd\",\"seq\"]"
-                               "}";
-
-const char *RCMP::SCHEMA_SIG_LOGIN = ""
-                                     "{"
-                                     "   \"type\":\"object\","
-                                     "   \"properties\":{"
-                                     "       \"cmd\":{"
-                                     "           \"type\":\"string\""
-                                     "       },"
-                                     "       \"seq\":{"
-                                     "           \"type\":\"integer\""
-                                     "       },"
-                                     "       \"payload\":{"
-                                     "          \"type\":\"object\","
-                                     "          \"properties\":{"
-                                     "              \"ver\":{"
-                                     "                  \"type\":\"integer\""
-                                     "              },"
-                                     "              \"type\":{"
-                                     "                  \"type\":\"string\""
-                                     "              },"
-                                     "              \"id\":{"
-                                     "                  \"type\":\"string\""
-                                     "              }"
-                                     "          },"
-                                     "          \"required\":[\"ver\",\"type\",\"id\"]"
-                                     "       }"
-                                     "   },"
-                                     "   \"required\":[\"cmd\",\"seq\",\"payload\"]"
-                                     "}";
-
-const char *RCMP::SCHEMA_SIG_LOGIN_RESP = ""
-                                          "{"
-                                          "   \"type\":\"object\","
-                                          "   \"properties\":{"
-                                          "       \"cmd\":{"
-                                          "           \"type\":\"string\""
-                                          "       },"
-                                          "       \"seq\":{"
-                                          "           \"type\":\"integer\""
-                                          "       },"
-                                          "       \"errno\":{"
-                                          "           \"type\":\"integer\""
-                                          "       },"
-                                          "       \"errmsg\":{"
-                                          "           \"type\":\"string\""
-                                          "       },"
-                                          "       \"payload\":{"
-                                          "           \"type\":\"object\""
-                                          "       }"
-                                          "   },"
-                                          "   \"required\":[\"cmd\",\"seq\",\"errno\",\"errmsg\",\"payload\"]"
-                                          "}";
-
-const char *RCMP::SCHEMA_SIG_LOGOUT = ""
-                                      "{"
-                                      "   \"type\":\"object\","
-                                      "   \"properties\":{"
-                                      "       \"cmd\":{"
-                                      "           \"type\":\"string\""
-                                      "       },"
-                                      "       \"seq\":{"
-                                      "           \"type\":\"integer\""
-                                      "       }"
-                                      "   },"
-                                      "   \"required\":[\"cmd\",\"seq\"]"
-                                      "}";
-
-const char *RCMP::SCHEMA_SIG_LOGOUT_RESP = RCMP::SCHEMA_SIG_LOGIN_RESP;
-
-const char *RCMP::SCHEMA_SIG_PING = RCMP::SCHEMA_SIG_LOGOUT;
-const char *RCMP::SCHEMA_SIG_PONG = RCMP::SCHEMA_SIG_LOGOUT_RESP;
-
-const char *RCMP::SCHEMA_SIG_INFO = RCMP::SCHEMA_SIG_LOGOUT;
-const char *RCMP::SCHEMA_SIG_INFO_RESP = ""
-                                         "{"
-                                         "   \"type\":\"object\","
-                                         "   \"properties\":{"
-                                         "       \"cmd\":{"
-                                         "           \"type\":\"string\""
-                                         "       },"
-                                         "       \"seq\":{"
-                                         "           \"type\":\"integer\""
-                                         "       },"
-                                         "       \"payload\":{"
-                                         "          \"type\":\"object\","
-                                         "          \"properties\":{"
-                                         "              \"id\":{"
-                                         "                  \"type\":\"string\""
-                                         "              },"
-                                         "              \"type\":{"
-                                         "                  \"type\":\"string\""
-                                         "              },"
-                                         "              \"name\":{"
-                                         "                  \"type\":\"string\""
-                                         "              }"
-                                         "          },"
-                                         "          \"required\":[\"id\",\"type\",\"name\"]"
-                                         "       }"
-                                         "   },"
-                                         "   \"required\":[\"cmd\",\"seq\",\"payload\"]"
-                                         "}";
+const char *RCMP::SIG_MOVE = "Move";
+const char *RCMP::SIG_MOVE_RESP = "MoveResp";
 
 std::map<const char *, const char *> RCMP::gSigRespCmdMap;
 std::map<const char *, rapidjson::SchemaDocument *> RCMP::gSchemaMap;
@@ -170,35 +64,34 @@ int RCMP::parse(void *pBuf, int &len, Document &doc)
     int nRet = verifyFrame(pFrame, len);
     if (nRet != SUCCESS)
     {
+        ROS_ERROR("[RCMP::parse] verify frame fail: %d", nRet);
         return nRet;
     }
 
-    try
+    string strPayload;
+
+    // set 'len' to frame size
+    len = pFrame->len();
+    strPayload.append(pFrame->payload, len - RCMP_FRAMEHEADSIZE);
+
+    doc.Parse(strPayload.c_str());
+    if (doc.HasParseError())
     {
-        string strPayload;
-
-        // set 'len' to frame size
-        len = pFrame->len();
-        strPayload.append(pFrame->payload, len - RCMP_FRAMEHEADSIZE);
-
-        doc.Parse(strPayload.c_str());
-        if (doc.HasParseError())
-        {
-            // parse payload, as Json, fail
-            return ERROR_INVALID;
-        }
-        if (!verifySig(doc))
-        {
-            // invalid signaling
-            return ERROR_INVALID;
-        }
-
-        return SUCCESS;
-    }
-    catch (...)
-    {
+        // json parse fail
+        ROS_ERROR("[RCMP::parse] parse err[offset %u]: %s\n%s",
+                  (unsigned)doc.GetErrorOffset(),
+                  GetParseError_En(doc.GetParseError()),
+                  strPayload.c_str());
         return ERROR_INVALID;
     }
+    if (!verifySig(doc))
+    {
+        // invalid signaling
+        ROS_ERROR("[RCMP::parse] invalid signaling");
+        return ERROR_INVALID;
+    }
+
+    return SUCCESS;
 }
 
 const char *RCMP::getRespCmd(const char *cmd)
@@ -211,6 +104,7 @@ const char *RCMP::getRespCmd(const char *cmd)
         return item.second;
     }
 
+    ROS_ERROR("[RCMP::getRespCmd] corresponding response of cmd[%s] not found", cmd);
     return nullptr;
 }
 
@@ -281,6 +175,10 @@ int RCMP::fillFrame(void *buf, const int len, const void *payload, const int pay
 
     if (payloadLen + RCMP_FRAMEHEADSIZE > len)
     {
+        ROS_ERROR("[RCMP::fillFrame] payloadLen[%d] + RCMP_FRAMEHEADSIZE[%d] > len[%d]",
+                  payloadLen,
+                  RCMP_FRAMEHEADSIZE,
+                  len);
         return 0;
     }
 
@@ -313,6 +211,7 @@ void RCMP::init()
     gSigRespCmdMap[SIG_LOGOUT] = SIG_LOGOUT_RESP;
     gSigRespCmdMap[SIG_PING] = SIG_PONG;
     gSigRespCmdMap[SIG_INFO] = SIG_INFO_RESP;
+    gSigRespCmdMap[SIG_MOVE] = SIG_MOVE_RESP;
 
     // init schemas and validators
     initSchemaValidator(SIGNALING, SCHEMA_SIG);
@@ -324,6 +223,8 @@ void RCMP::init()
     initSchemaValidator(SIG_PONG, SCHEMA_SIG_PONG);
     initSchemaValidator(SIG_INFO, SCHEMA_SIG_INFO);
     initSchemaValidator(SIG_INFO_RESP, SCHEMA_SIG_INFO_RESP);
+    initSchemaValidator(SIG_MOVE, SCHEMA_SIG_MOVE);
+    initSchemaValidator(SIG_MOVE_RESP, SCHEMA_SIG_MOVE_RESP);
 }
 
 void RCMP::initSchemaValidator(const char *name, const char *schema)
@@ -347,6 +248,8 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
     if (len < RCMP_FRAMEHEADSIZE)
     {
         // Need more data
+        ROS_DEBUG("[RCMP::verifyFrame] Need more data");
+
         return NEED_MORE_DATA;
     }
 
@@ -354,6 +257,7 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
     if (pFrame->startFlag != RCMP_STARTFLAG)
     {
         // invalid Start Flag
+        ROS_ERROR("[RCMP::verifyFrame] invalid Start Flag");
         return ERROR_INVALID;
     }
 
@@ -361,12 +265,14 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
     int sigLen = pFrame->len();
     if (sigLen > RCMP_MAX_SIGNALING_LENGTH)
     {
-        // too large
+        // signaling too large
+        ROS_ERROR("[RCMP::verifyFrame] signaling too large");
         return ERROR_INVALID;
     }
     else if (len < sigLen)
     {
         // Need more data
+        ROS_DEBUG("[RCMP::verifyFrame] Need more data");
         return NEED_MORE_DATA;
     }
 
@@ -375,14 +281,25 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
 
 bool RCMP::verifySig(Document &doc)
 {
+    rapidjson::SchemaValidator *pValidator = nullptr;
+
     // check signaling's basic format
-    if (!doc.Accept(*gValidatorMap[SIGNALING]))
+    pValidator = gValidatorMap[SIGNALING];
+    if (!doc.Accept(*pValidator))
     {
-        // invalid format
+        // Input JSON is invalid according to the schema
+        // Output diagnostic information
+        StringBuffer sb;
+        pValidator->GetInvalidSchemaPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid schema: %s", sb.GetString());
+        ROS_ERROR("[RCMP::verifySig] Invalid keyword: %s", pValidator->GetInvalidSchemaKeyword());
+        sb.Clear();
+        pValidator->GetInvalidDocumentPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid document: %s", sb.GetString());
+
         return false;
     }
 
-    rapidjson::SchemaValidator *pValidator = nullptr;
     const char *cmdField = doc[FIELD_CMD].GetString();
 
     if (strcasecmp(cmdField, SIG_LOGIN) == 0)
@@ -401,12 +318,33 @@ bool RCMP::verifySig(Document &doc)
         pValidator = gValidatorMap[SIG_INFO];
     else if (strcasecmp(cmdField, SIG_INFO_RESP) == 0)
         pValidator = gValidatorMap[SIG_INFO_RESP];
+    else if (strcasecmp(cmdField, SIG_MOVE) == 0)
+        pValidator = gValidatorMap[SIG_MOVE];
+    else if (strcasecmp(cmdField, SIG_MOVE_RESP) == 0)
+        pValidator = gValidatorMap[SIG_MOVE_RESP];
     else
         return false; // unknown signaling cmd
 
     // verify format
     assert(pValidator);
-    return doc.Accept(*pValidator) ? true : false;
+    if (doc.Accept(*pValidator))
+    {
+        return true;
+    }
+    else
+    {
+        // Input JSON is invalid according to the schema
+        // Output diagnostic information
+        StringBuffer sb;
+        pValidator->GetInvalidSchemaPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid schema: %s", sb.GetString());
+        ROS_ERROR("[RCMP::verifySig] Invalid keyword: %s", pValidator->GetInvalidSchemaKeyword());
+        sb.Clear();
+        pValidator->GetInvalidDocumentPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid document: %s", sb.GetString());
+
+        return false;
+    }
 }
 
 } // namespace roscar_common

@@ -38,6 +38,9 @@ public:
     static const char *FIELD_INFORESP_ID;
     static const char *FIELD_INFORESP_TYPE;
     static const char *FIELD_INFORESP_NAME;
+    static const char *FIELD_MOVE_ANGLE;
+    static const char *FIELD_MOVE_POWER;
+    static const char *FIELD_MOVE_DURATION;
 
     static const char *SIGNALING;
     static const char *SIG_LOGIN;
@@ -48,6 +51,8 @@ public:
     static const char *SIG_PONG;
     static const char *SIG_INFO;
     static const char *SIG_INFO_RESP;
+    static const char *SIG_MOVE;
+    static const char *SIG_MOVE_RESP;
 
     static const char *SCHEMA_SIG;
     static const char *SCHEMA_SIG_LOGIN;
@@ -58,6 +63,8 @@ public:
     static const char *SCHEMA_SIG_PONG;
     static const char *SCHEMA_SIG_INFO;
     static const char *SCHEMA_SIG_INFO_RESP;
+    static const char *SCHEMA_SIG_MOVE;
+    static const char *SCHEMA_SIG_MOVE_RESP;
 
     typedef struct FRAME
     {

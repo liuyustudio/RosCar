@@ -29,10 +29,12 @@ protected:
     static bool onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig);
     static bool onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig);
     static bool onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool onSigMove(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
     static bool sendToBuf(UDS::SESSION_t &sess, rapidjson::Document &sig);
 
     static ros::ServiceClient gSvrInfo;
+    static ros::ServiceClient gSvrMove;
 };
 
 } // namespace interface

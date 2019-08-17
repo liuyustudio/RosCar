@@ -1,5 +1,7 @@
 #include "cli.h"
 
+#include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -7,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sstream>
 #include <ros/ros.h>
 
 #include "roscar_common/error.h"
@@ -29,6 +32,10 @@ bool Cli::onCmd(vector<string> &cmd)
     {
         return onCmd_Info(cmd);
     }
+    else if (0 == strcasecmp(cmd[0].c_str(), "move"))
+    {
+        return onCmd_Move(cmd);
+    }
     else if ((0 == strcasecmp(cmd[0].c_str(), "q")) ||
              (0 == strcasecmp(cmd[0].c_str(), "quit")))
     {
@@ -37,28 +44,9 @@ bool Cli::onCmd(vector<string> &cmd)
     }
     else
     {
-        ROS_DEBUG_STREAM("[Cli::onCmd] unsupported command: " << cmd[0]);
+        ROS_ERROR_STREAM("[Cli::onCmd] unsupported command: " << cmd[0]);
         return true;
     }
-}
-
-void Cli::sendRequest(string &req)
-{
-    sendSig(req);
-}
-
-bool Cli::onCmd_Info(vector<string> &cmd)
-{
-    string INFO_REQUEST = "{"
-                          "  \"cmd\": \"Info\","
-                          "  \"seq\": 0,"
-                          "  \"payload\": null"
-                          "}";
-
-    // put request into list
-    sendRequest(INFO_REQUEST);
-
-    return true;
 }
 
 bool Cli::onSignaling(UDSClient::SESSION_t &sess, Document &sig)
@@ -69,11 +57,40 @@ bool Cli::onSignaling(UDSClient::SESSION_t &sess, Document &sig)
     {
         return onSigInfoResp(sig);
     }
+    else if (strcasecmp(RCMP::SIG_MOVE_RESP, cmd) == 0)
+    {
+        return onSigMoveResp(sig);
+    }
     else
     {
         ROS_ERROR("[Cli::onSignaling] process routine for signaling[%s] Not implemented yet.", cmd);
         return false;
     }
+}
+
+void Cli::sendRequest(string &req)
+{
+    sendSig(req);
+}
+
+bool Cli::onCmd_Info(vector<string> &cmd)
+{
+    string request =
+        R"({
+            "cmd": "Info",
+            "seq": 0,
+            "payload": null
+        })";
+    request.erase(remove_if(request.begin(), request.end(),
+                            [](unsigned char ch) { return isspace(ch); }),
+                  request.end());
+
+    // ROS_DEBUG("request: %s", request.c_str());
+
+    // put request into list
+    sendRequest(request);
+
+    return true;
 }
 
 bool Cli::onSigInfoResp(Document &sig)
@@ -92,9 +109,62 @@ bool Cli::onSigInfoResp(Document &sig)
     const char *type = payload[RCMP::FIELD_INFORESP_TYPE].GetString();
     const char *name = payload[RCMP::FIELD_INFORESP_NAME].GetString();
 
-    printf("\tinfo.id: %s\n", id);
-    printf("\tinfo.type: %s\n", type);
-    printf("\tinfo.name: %s\n", name);
+    ROS_INFO("\tinfo.id: %s", id);
+    ROS_INFO("\tinfo.type: %s", type);
+    ROS_INFO("\tinfo.name: %s", name);
+    printf("> ");
+    fflush(nullptr);
+
+    return true;
+}
+
+bool Cli::onCmd_Move(vector<string> &cmd)
+{
+    if (cmd.size() != 4)
+    {
+        ROS_ERROR("syntax: move [angle] [power] [duration]");
+        return true;
+    }
+
+    // parse command
+    float angle = atof(cmd[1].c_str());
+    float power = atof(cmd[2].c_str());
+    float duration = atof(cmd[3].c_str());
+
+    stringstream ss;
+
+    ss << R"({ "cmd": "Move", "seq": 0, "payload": {)"
+       << R"(  "angle":)" << angle
+       << R"(, "power": )" << power
+       << R"(, "duration": )" << duration
+       << R"(}})";
+
+    string &&request = ss.str();
+
+    request.erase(remove_if(request.begin(), request.end(),
+                            [](unsigned char ch) { return isspace(ch); }),
+                  request.end());
+
+    // put request into list
+    sendRequest(request);
+
+    return true;
+}
+
+bool Cli::onSigMoveResp(Document &sig)
+{
+    int _errno = sig[RCMP::FIELD_ERRNO].GetInt();
+    if (_errno != SUCCESS)
+    {
+        // query Move fail
+        const char *_errmsg = sig[RCMP::FIELD_ERRMSG].GetString();
+        ROS_ERROR("[Cli::onSigMoveResp] move fail. Error: %d. %s", _errno, _errmsg);
+        return false;
+    }
+
+    ROS_INFO("\t move ok.");
+    printf("> ");
+    fflush(nullptr);
 
     return true;
 }
