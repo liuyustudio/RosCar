@@ -2,7 +2,9 @@
 #include <exception>
 #include <sstream>
 #include <string>
+#include "ros/ros.h"
 #include "rapidjson/writer.h"
+#include "rapidjson/error/en.h"
 #include "const.h"
 #include "error.h"
 
@@ -62,35 +64,34 @@ int RCMP::parse(void *pBuf, int &len, Document &doc)
     int nRet = verifyFrame(pFrame, len);
     if (nRet != SUCCESS)
     {
+        ROS_ERROR("[RCMP::parse] verify frame fail: %d", nRet);
         return nRet;
     }
 
-    try
+    string strPayload;
+
+    // set 'len' to frame size
+    len = pFrame->len();
+    strPayload.append(pFrame->payload, len - RCMP_FRAMEHEADSIZE);
+
+    doc.Parse(strPayload.c_str());
+    if (doc.HasParseError())
     {
-        string strPayload;
-
-        // set 'len' to frame size
-        len = pFrame->len();
-        strPayload.append(pFrame->payload, len - RCMP_FRAMEHEADSIZE);
-
-        doc.Parse(strPayload.c_str());
-        if (doc.HasParseError())
-        {
-            // parse payload, as Json, fail
-            return ERROR_INVALID;
-        }
-        if (!verifySig(doc))
-        {
-            // invalid signaling
-            return ERROR_INVALID;
-        }
-
-        return SUCCESS;
-    }
-    catch (...)
-    {
+        // json parse fail
+        ROS_ERROR("[RCMP::parse] parse err[offset %u]: %s\n%s",
+                  (unsigned)doc.GetErrorOffset(),
+                  GetParseError_En(doc.GetParseError()),
+                  strPayload.c_str());
         return ERROR_INVALID;
     }
+    if (!verifySig(doc))
+    {
+        // invalid signaling
+        ROS_ERROR("[RCMP::parse] invalid signaling");
+        return ERROR_INVALID;
+    }
+
+    return SUCCESS;
 }
 
 const char *RCMP::getRespCmd(const char *cmd)
@@ -103,6 +104,7 @@ const char *RCMP::getRespCmd(const char *cmd)
         return item.second;
     }
 
+    ROS_ERROR("[RCMP::getRespCmd] corresponding response of cmd[%s] not found", cmd);
     return nullptr;
 }
 
@@ -173,6 +175,10 @@ int RCMP::fillFrame(void *buf, const int len, const void *payload, const int pay
 
     if (payloadLen + RCMP_FRAMEHEADSIZE > len)
     {
+        ROS_ERROR("[RCMP::fillFrame] payloadLen[%d] + RCMP_FRAMEHEADSIZE[%d] > len[%d]",
+                  payloadLen,
+                  RCMP_FRAMEHEADSIZE,
+                  len);
         return 0;
     }
 
@@ -242,6 +248,8 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
     if (len < RCMP_FRAMEHEADSIZE)
     {
         // Need more data
+        ROS_DEBUG("[RCMP::verifyFrame] Need more data");
+
         return NEED_MORE_DATA;
     }
 
@@ -249,6 +257,7 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
     if (pFrame->startFlag != RCMP_STARTFLAG)
     {
         // invalid Start Flag
+        ROS_ERROR("[RCMP::verifyFrame] invalid Start Flag");
         return ERROR_INVALID;
     }
 
@@ -256,12 +265,14 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
     int sigLen = pFrame->len();
     if (sigLen > RCMP_MAX_SIGNALING_LENGTH)
     {
-        // too large
+        // signaling too large
+        ROS_ERROR("[RCMP::verifyFrame] signaling too large");
         return ERROR_INVALID;
     }
     else if (len < sigLen)
     {
         // Need more data
+        ROS_DEBUG("[RCMP::verifyFrame] Need more data");
         return NEED_MORE_DATA;
     }
 
@@ -270,14 +281,25 @@ int RCMP::verifyFrame(FRAME_t *pFrame, int len)
 
 bool RCMP::verifySig(Document &doc)
 {
+    rapidjson::SchemaValidator *pValidator = nullptr;
+
     // check signaling's basic format
-    if (!doc.Accept(*gValidatorMap[SIGNALING]))
+    pValidator = gValidatorMap[SIGNALING];
+    if (!doc.Accept(*pValidator))
     {
-        // invalid format
+        // Input JSON is invalid according to the schema
+        // Output diagnostic information
+        StringBuffer sb;
+        pValidator->GetInvalidSchemaPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid schema: %s", sb.GetString());
+        ROS_ERROR("[RCMP::verifySig] Invalid keyword: %s", pValidator->GetInvalidSchemaKeyword());
+        sb.Clear();
+        pValidator->GetInvalidDocumentPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid document: %s", sb.GetString());
+
         return false;
     }
 
-    rapidjson::SchemaValidator *pValidator = nullptr;
     const char *cmdField = doc[FIELD_CMD].GetString();
 
     if (strcasecmp(cmdField, SIG_LOGIN) == 0)
@@ -305,7 +327,24 @@ bool RCMP::verifySig(Document &doc)
 
     // verify format
     assert(pValidator);
-    return doc.Accept(*pValidator) ? true : false;
+    if (doc.Accept(*pValidator))
+    {
+        return true;
+    }
+    else
+    {
+        // Input JSON is invalid according to the schema
+        // Output diagnostic information
+        StringBuffer sb;
+        pValidator->GetInvalidSchemaPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid schema: %s", sb.GetString());
+        ROS_ERROR("[RCMP::verifySig] Invalid keyword: %s", pValidator->GetInvalidSchemaKeyword());
+        sb.Clear();
+        pValidator->GetInvalidDocumentPointer().StringifyUriFragment(sb);
+        ROS_ERROR("[RCMP::verifySig] Invalid document: %s", sb.GetString());
+
+        return false;
+    }
 }
 
 } // namespace roscar_common
