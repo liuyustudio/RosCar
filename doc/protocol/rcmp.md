@@ -112,6 +112,9 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 | ---------- | -------------- |
 | Info       | 请求设备信息     |
 | InfoResp   | 请求设备信息回复  |
+| ---------- | -------------- |
+| Move       | 移动指令     |
+| MoveResp   | 移动指令回复  |
 
 各信令其具体定义见后续章节。
 
@@ -281,3 +284,41 @@ payload 含义：
 * id: 设备 ID。
 * type: 设备类型。
 * name: 设备名。
+
+### 4.5. Move 与 MoveResp
+
+Move 信令格式定义如下：
+
+``` json
+{
+  "cmd": "Move",
+  "seq": 0,
+  "payload": {
+    "angle": 0,
+    "power": 100,
+    "duration": 0,
+  }
+}
+```
+
+payload 含义：
+
+* angle: 修改移动方向，以当前设备方向逆时针为正方向，以 度 为单位，默认为 0。
+* power: 移动功率，有效值为 [0:100]，默认为 100。
+* duration: 移动持续时间，以秒为单位，负数表示持续运行。
+
+MoveResp 信令格式定义如下：
+
+```json
+{
+  "cmd": "MoveResp",
+  "seq": 0,
+  "errno": 0,
+  "errmsg": "",
+  "payload": null
+}
+```
+
+payload 含义：
+
+无
