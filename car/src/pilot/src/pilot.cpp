@@ -8,7 +8,7 @@ using namespace roscar::car;
 bool info(pilot::Info::Request &req,
           pilot::Info::Response &res)
 {
-  ROS_DEBUG("request device info");
+  ROS_DEBUG("query dev info");
 
   res.id = "string of id";
   res.type = "string of type";
