@@ -20,8 +20,9 @@ namespace cli
 class UDSClient
 {
 public:
-    static const int EPOLL_TIMEOUT = 1 * 1000;
-    static const int EPOLL_RETRY_INTERVAL = 1 * 100 * 1000;
+    static const int INTERVAL_EPOLL_RETRY;
+    static const int INTERVAL_CONNECT_RETRY;
+
     static const int EPOLL_MAX_EVENTS = 16;
     static const int MAX_CLIENT_COUNT = 8;
     static const int RECV_BUFFER_CAPACITY = 8 * 1024;
@@ -38,8 +39,10 @@ public:
         char recvBuf[RECV_BUFFER_CAPACITY];
         char sendBuf[SEND_BUFFER_CAPACITY];
 
-        inline bool isSendBufFull() { return SEND_BUFFER_CAPACITY == sendBufEnd; }
+        inline bool isRecvBufEmpty() { return recvBufPos == recvBufEnd; }
         inline bool isRecvBufFull() { return RECV_BUFFER_CAPACITY == recvBufEnd; }
+        inline bool isSendBufEmpty() { return sendBufPos == sendBufEnd; }
+        inline bool isSendBufFull() { return SEND_BUFFER_CAPACITY == sendBufEnd; }
         inline bool defragRecvBuf()
         {
             if (0 == recvBufPos)
@@ -80,21 +83,22 @@ public:
 
 protected:
     void threadFunc();
+    bool initEnv(int & epollfd, int & soc);
+    void closeEnv(int & epollfd, int & soc);
 
-    bool onSoc(unsigned int socEvents, SESSION_t &sess);
-    bool onRead(SESSION_t &sess);
-    bool onWrite(SESSION_t &sess);
+    bool onSoc(int epollfd, unsigned int socEvents, SESSION_t &sess);
+    bool onRead(int epollfd, SESSION_t &sess);
+    bool onWrite(int epollfd, SESSION_t &sess);
     int parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig);
     bool sendToBuf(SESSION_t &sess, rapidjson::Document &sig);
     bool sendToBuf(SESSION_t &sess, std::string &sig);
-    bool setWriteFlag(SESSION_t &sess, bool writeFlag = true);
+    bool setWriteFlag(int epollfd, SESSION_t &sess, bool writeFlag = true);
 
+    std::string mUdsUri;
     std::vector<std::thread> mThreadArray;
-    bool mStopUDS;
-    int mEpollfd = 0;
-    int mUdsSoc = 0;
+    bool mStopFlag;
 
-    std::mutex mReqStrListMutex;
+    std::mutex mAccessMutex;
     std::list<std::string> mReqStrList;
 
     FUNC_ONSIGLAING mCb_OnSig;

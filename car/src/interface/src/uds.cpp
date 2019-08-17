@@ -2,11 +2,11 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <string.h>
-#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/epoll.h>
+#include <chrono>
+#include <exception>
 
 #include "ros/ros.h"
 #include "roscar_common/error.h"
@@ -22,8 +22,11 @@ namespace car
 namespace interface
 {
 
+const int UDS::INTERVAL_EPOLL_RETRY = 100;
+const int UDS::INTERVAL_CONNECT_RETRY = 7;
+
 UDS::UDS(FUNC_ONSIGLAING cb_onSig)
-    : mStopUDS(false), mCb_OnSig(cb_onSig)
+    : mUdsUri(), mStopFlag(true), mCb_OnSig(cb_onSig)
 {
 }
 
@@ -34,55 +37,21 @@ UDS::~UDS()
 
 bool UDS::start(const char *udsUri)
 {
-    ROS_DEBUG("[UDS::start] start UDS");
+    mUdsUri = udsUri;
 
-    // init epoll file descriptor
-    if ((mEpollfd = epoll_create1(0)) < 0)
+    // start thread
     {
-        ROS_ERROR("[UDS::start] Failed to create epoll. Error[%d]: %s",
-                  errno, strerror(errno));
-        stop();
-        return false;
-    }
-
-    // init Unix Domain Socket
-    {
-        ROS_DEBUG("[UDS::start] init Unix Domain Socket: %s", udsUri);
-        if ((mUdsSoc = socket(AF_UNIX, SOCK_STREAM, 0)) <= 0)
+        ROS_DEBUG("[UDS::start] start thread");
+        lock_guard<mutex> lock(mAccessMutex);
+        if (!mStopFlag)
         {
-            ROS_ERROR("[UDS::start] Fail to create socket. Error[%d]: %s",
-                      errno, strerror(errno));
-            stop();
+            ROS_ERROR("[UDS::start] stop thread first");
             return false;
         }
 
-        struct sockaddr_un addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, udsUri, sizeof(addr.sun_path) - 1);
-        unlink(udsUri);
-
-        if (bind(mUdsSoc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-        {
-            ROS_ERROR("[UDS::start] Fail to bind[%s]. Error[%d]: %s",
-                      udsUri, errno, strerror(errno));
-            stop();
-            return false;
-        }
-
-        if (listen(mUdsSoc, SOMAXCONN) == -1)
-        {
-            ROS_ERROR("[UDS::start] Listen fail. Error[%d]: %s",
-                      errno, strerror(errno));
-            stop();
-            return false;
-        }
-
-        // start thread
+        mStopFlag = false;
         mThreadArray.emplace_back(&UDS::threadFunc, this);
     }
-
-    ROS_DEBUG("[UDS::start] UDS started");
 
     return true;
 }
@@ -92,135 +61,238 @@ void UDS::stop()
     ROS_DEBUG("[UDS::stop] stop UDS");
 
     // stop threads
-    mStopUDS = true;
-    for (auto &t : mThreadArray)
     {
-        t.join();
+        ROS_DEBUG("[UDS::stop] stop threads");
+        lock_guard<mutex> lock(mAccessMutex);
+        if (!mStopFlag)
+        {
+            mStopFlag = true;
+            for (auto &t : mThreadArray)
+            {
+                t.join();
+            }
+            mThreadArray.clear();
+        }
+        else
+        {
+            ROS_DEBUG("[UDS::stop] threads not running");
+        }
     }
-
-    // close epoll file descriptor
-    if (mEpollfd)
-    {
-        close(mEpollfd);
-        mEpollfd = 0;
-    }
-
-    // close Unix Domain Socket
-    if (mUdsSoc)
-    {
-        close(mUdsSoc);
-        mUdsSoc = 0;
-    }
-
-    ROS_DEBUG("[UDS::stop] UDS stopped");
 }
 
 void UDS::threadFunc()
 {
-    ROS_DEBUG("[UDS::threadFunc] init UDS thread");
-    map<int, SESSION_t> soc2Sess;
-
-    int soc;
-    int ret;
-    SESSION_t sess;
-
-    struct epoll_event event;
-    struct epoll_event events[MAX_CLIENT_COUNT];
-
-    event.events = EPOLLIN;
-    event.data.fd = mUdsSoc;
-    if (epoll_ctl(mEpollfd, EPOLL_CTL_ADD, mUdsSoc, &event))
-    {
-        ROS_ERROR("[UDS::threadFunc] Failed to add DUS fd to epoll. Error[%d]: %s",
-                  errno, strerror(errno));
-        return;
-    }
-
     ROS_DEBUG("[UDS::threadFunc] UDS thread start");
-    while (!mStopUDS)
+    while (!mStopFlag)
     {
-        ret = epoll_wait(mEpollfd, events, EPOLL_MAX_EVENTS, EPOLL_TIMEOUT);
-        if (ret < 0)
-        {
-            if (errno == EAGAIN || errno == EINTR)
-            {
-                usleep(EPOLL_RETRY_INTERVAL);
-            }
-            else
-            {
-                ROS_ERROR("[UDS::threadFunc] epoll fail. Error[%d]: %s", errno, strerror(errno));
+        int epollfd = 0;
+        int udsSoc = 0;
 
-                // break thread routine loop
-                break;
-            }
-        }
-        else if (ret == 0)
+        // init env
+        if (!initEnv(epollfd, udsSoc))
         {
-            // timeout
-            usleep(EPOLL_RETRY_INTERVAL);
+            ROS_ERROR("[UDS::threadFunc] init fail. sleep %d seconds",
+                      INTERVAL_CONNECT_RETRY);
+            this_thread::sleep_for(chrono::seconds(INTERVAL_CONNECT_RETRY));
+            continue;
         }
-        else
+
+        // main routine
+        try
         {
-            for (int i = 0; i < ret; ++i)
+            map<int, SESSION_t> soc2Sess;
+
+            int soc;
+            int ret;
+            SESSION_t sess;
+
+            struct epoll_event event;
+            struct epoll_event events[MAX_CLIENT_COUNT];
+
+            event.events = EPOLLIN;
+            event.data.fd = udsSoc;
+            if (epoll_ctl(epollfd, EPOLL_CTL_ADD, udsSoc, &event))
             {
-                if (events[i].data.fd == mUdsSoc)
+                ROS_ERROR("[UDS::threadFunc] epoll add fail. Error[%d]: %s",
+                          errno, strerror(errno));
+                closeEnv(epollfd, udsSoc);
+                this_thread::sleep_for(chrono::seconds(INTERVAL_CONNECT_RETRY));
+                continue;
+            }
+
+            while (!mStopFlag)
+            {
+                ret = epoll_wait(epollfd, events, EPOLL_MAX_EVENTS, INTERVAL_EPOLL_RETRY);
+                if (ret < 0)
                 {
-                    // UDS server socket
-
-                    // accept client
-                    if ((soc = accept(mUdsSoc, NULL, NULL)) == -1)
+                    if (errno == EAGAIN || errno == EINTR)
                     {
-                        ROS_ERROR("[UDS::threadFunc] accept fail. Error[%d]: %s", errno, strerror(errno));
-                        continue;
+                        this_thread::sleep_for(chrono::milliseconds(INTERVAL_EPOLL_RETRY));
                     }
-
-                    // add client soc into epoll
-                    event.data.fd = soc;
-                    event.events = EPOLLIN;
-                    if (epoll_ctl(mEpollfd, EPOLL_CTL_ADD, soc, &event))
+                    else
                     {
-                        ROS_ERROR("[UDS::threadFunc] Failed to add client fd to epoll. Error[%d]: %s",
+                        ROS_ERROR("[UDS::threadFunc] epoll fail. Error[%d]: %s",
                                   errno, strerror(errno));
-                        close(soc);
-                        continue;
+                        break;
                     }
-
-                    // bind client socket with session data
-                    sess.soc = event.data.fd;
-                    sess.events = event.events;
-                    soc2Sess[soc] = sess;
-
-                    ROS_DEBUG("[UDS::threadFunc] Accept client[%d]", soc);
+                }
+                else if (ret == 0)
+                {
+                    // timeout
                 }
                 else
                 {
-                    // client socket
-                    soc = events[i].data.fd;
-                    SESSION_t &sess = soc2Sess[soc];
-
-                    if (!onSession(events[i].events, sess))
+                    for (int i = 0; i < ret; ++i)
                     {
-                        ROS_DEBUG("[UDS::threadFunc] Remove socket[%d]", soc);
+                        if (events[i].data.fd == udsSoc)
+                        {
+                            // UDS server socket
 
-                        // unbind client socket and session
-                        soc2Sess.erase(soc);
-                        // remove socket from epoll
-                        epoll_ctl(mEpollfd, EPOLL_CTL_DEL, soc, NULL);
+                            // accept client
+                            if ((soc = accept(udsSoc, NULL, NULL)) == -1)
+                            {
+                                ROS_ERROR("[UDS::threadFunc] accept fail. Error[%d]: %s", errno, strerror(errno));
+                                continue;
+                            }
+
+                            // add client soc into epoll
+                            event.data.fd = soc;
+                            event.events = EPOLLIN;
+                            if (epoll_ctl(epollfd, EPOLL_CTL_ADD, soc, &event))
+                            {
+                                ROS_ERROR("[UDS::threadFunc] Failed to add client fd to epoll. Error[%d]: %s",
+                                          errno, strerror(errno));
+                                close(soc);
+                                continue;
+                            }
+
+                            // bind client socket with session data
+                            sess.soc = event.data.fd;
+                            sess.events = event.events;
+                            soc2Sess[soc] = sess;
+
+                            ROS_DEBUG("[UDS::threadFunc] Accept client[%d]", soc);
+                        }
+                        else
+                        {
+                            // client socket
+                            soc = events[i].data.fd;
+                            SESSION_t &sess = soc2Sess[soc];
+
+                            if (!onSession(epollfd, events[i].events, sess))
+                            {
+                                ROS_DEBUG("[UDS::threadFunc] Remove socket[%d]", soc);
+
+                                // unbind client socket and session
+                                soc2Sess.erase(soc);
+                                // remove socket from epoll
+                                epoll_ctl(epollfd, EPOLL_CTL_DEL, soc, NULL);
+                            }
+                        }
                     }
                 }
             }
+        }
+        catch (const exception &e)
+        {
+            ROS_ERROR_STREAM("[UDS::threadFunc] catch an exception." << e.what());
+        }
+
+        // close env
+        closeEnv(epollfd, udsSoc);
+
+        if (!mStopFlag)
+        {
+            ROS_DEBUG("[UDS::threadFunc] sleep %d secnds and try again", INTERVAL_CONNECT_RETRY);
+            this_thread::sleep_for(chrono::seconds(INTERVAL_CONNECT_RETRY));
         }
     }
 
     ROS_DEBUG("[UDS::threadFunc] UDS thread stop");
 }
 
-bool UDS::onSession(unsigned int socEvents, SESSION_t &sess)
+bool UDS::initEnv(int &epollfd, int &soc)
+{
+    // create epoll
+    ROS_DEBUG("[UDS::initEnv] create epoll");
+    if ((epollfd = epoll_create1(0)) < 0)
+    {
+        ROS_ERROR("[UDS::initEnv] Failed to create epoll. Error[%d]: %s",
+                  errno, strerror(errno));
+        closeEnv(epollfd, soc);
+        return false;
+    }
+
+    // init Unix Domain Socket
+    {
+        ROS_DEBUG("[UDS::initEnv] init Unix Domain Socket: %s", mUdsUri.c_str());
+        if ((soc = socket(AF_UNIX, SOCK_STREAM, 0)) <= 0)
+        {
+            ROS_ERROR("[UDS::initEnv] Fail to create socket. Error[%d]: %s",
+                      errno, strerror(errno));
+            closeEnv(epollfd, soc);
+            return false;
+        }
+
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, mUdsUri.c_str(), sizeof(addr.sun_path) - 1);
+        unlink(mUdsUri.c_str());
+
+        if (bind(soc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
+            ROS_ERROR("[UDS::initEnv] Fail to bind[%s]. Error[%d]: %s",
+                      mUdsUri.c_str(), errno, strerror(errno));
+            closeEnv(epollfd, soc);
+            return false;
+        }
+
+        if (listen(soc, SOMAXCONN) == -1)
+        {
+            ROS_ERROR("[UDS::initEnv] Listen fail. Error[%d]: %s",
+                      errno, strerror(errno));
+            closeEnv(epollfd, soc);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void UDS::closeEnv(int & epollfd, int & soc)
+{
+    // close epoll file descriptor
+    ROS_DEBUG("[UDS::closeEnv] close epoll file descriptor");
+    if (epollfd)
+    {
+        if (close(epollfd))
+        {
+            ROS_ERROR("[UDS::closeEnv] Fail to close epoll. Error[%d]: %s",
+                      errno, strerror(errno));
+        }
+        epollfd = 0;
+    }
+
+    // close Unix Domain Socket
+    ROS_DEBUG("[UDS::closeEnv] close Unix Domain Socket");
+    if (soc)
+    {
+        if (close(soc))
+        {
+            ROS_ERROR("[UDS::closeEnv] Fail to close Unix Domain Socket. Error[%d]: %s",
+                      errno, strerror(errno));
+        }
+        soc = 0;
+    }
+}
+
+bool UDS::onSession(int epollfd, unsigned int socEvents, SESSION_t &sess)
 {
     if (socEvents & EPOLLIN)
     {
         // available for read
-        if (!onRead(sess))
+        if (!onRead(epollfd, sess))
         {
             return false;
         }
@@ -228,7 +300,7 @@ bool UDS::onSession(unsigned int socEvents, SESSION_t &sess)
     if (socEvents & EPOLLOUT)
     {
         // available for write
-        if (!onWrite(sess))
+        if (!onWrite(epollfd, sess))
         {
             return false;
         }
@@ -249,7 +321,7 @@ bool UDS::onSession(unsigned int socEvents, SESSION_t &sess)
     return true;
 }
 
-bool UDS::onRead(SESSION_t &sess)
+bool UDS::onRead(int epollfd, SESSION_t &sess)
 {
     assert(sess.recvBufPos >= 0);
     assert(sess.recvBufPos <= sess.recvBufEnd);
@@ -276,41 +348,43 @@ bool UDS::onRead(SESSION_t &sess)
 
     // parse signaling from raw buffer
     Document doc;
-    nRet = parseSig(sess, doc);
-    if (nRet != SUCCESS)
+    while (!sess.isRecvBufEmpty())
     {
-        if (nRet == NEED_MORE_DATA)
+        nRet = parseSig(sess, doc);
+        if (nRet != SUCCESS)
         {
-            // need more data
+            if (nRet == NEED_MORE_DATA)
+            {
+                // need more data
+                break;
+            }
+            else
+            {
+                ROS_ERROR("[UDS::onRead] socket[%d] parse signaling fail", sess.soc);
+                return false;
+            }
+        }
+
+        // process signaling
+        if (!mCb_OnSig(sess, doc))
+        {
+            ROS_ERROR("[UDS::onRead] socket[%d] process signaling fail", sess.soc);
+            return false;
+        }
+    }
+
+    // adjust recv buffer pos variables
+    if (sess.isRecvBufFull())
+    {
+        // defrag recv buffer
+        if (sess.defragRecvBuf())
+        {
             return true;
         }
         else
         {
-            ROS_ERROR("[UDS::onRead] socket[%d] parse signaling fail", sess.soc);
+            ROS_ERROR("[UDS::onRead] defrage recv buffer for soc[%d] fail", sess.soc);
             return false;
-        }
-    }
-
-    // process signaling
-    if (!mCb_OnSig(sess, doc))
-    {
-        ROS_ERROR("[UDS::onRead] socket[%d] process signaling fail", sess.soc);
-        return false;
-    }
-
-    // adjust recv buffer pos variables
-    if (sess.recvBufEnd == RECV_BUFFER_CAPACITY)
-    {
-        if (sess.recvBufPos == 0)
-        {
-            ROS_ERROR("[UDS::onRead] recv buffer of socket[%d] full", sess.soc);
-            return false;
-        }
-        else
-        {
-            memmove(sess.recvBuf, sess.recvBuf + sess.recvBufPos, sess.recvBufPos);
-            sess.recvBufEnd -= sess.recvBufPos;
-            sess.recvBufPos = 0;
         }
     }
 
@@ -325,7 +399,7 @@ bool UDS::onRead(SESSION_t &sess)
             struct epoll_event event;
             event.data.fd = sess.soc;
             event.events = sess.events;
-            if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
+            if (epoll_ctl(epollfd, EPOLL_CTL_MOD, sess.soc, &event))
             {
                 ROS_ERROR("[UDS::onRead] Failed to add poll-out event for client[%d]. Error[%d]: %s",
                           sess.soc, errno, strerror(errno));
@@ -337,7 +411,7 @@ bool UDS::onRead(SESSION_t &sess)
     return true;
 }
 
-bool UDS::onWrite(SESSION_t &sess)
+bool UDS::onWrite(int epollfd, SESSION_t &sess)
 {
     assert(sess.recvBufPos >= 0);
     assert(sess.recvBufPos <= sess.recvBufEnd);
@@ -366,7 +440,7 @@ bool UDS::onWrite(SESSION_t &sess)
         epoll_event event;
         event.data.fd = sess.soc;
         event.events = sess.events;
-        if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, sess.soc, &event))
+        if (epoll_ctl(epollfd, EPOLL_CTL_MOD, sess.soc, &event))
         {
             ROS_ERROR("[UDS::onWrite] Failed to modify socket[%d] epoll event fail. Error[%d]: %s",
                       sess.soc, errno, strerror(errno));
