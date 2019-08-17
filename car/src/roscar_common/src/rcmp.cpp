@@ -6,6 +6,8 @@
 #include "const.h"
 #include "error.h"
 
+#include "schemaSig.cpp"
+
 using namespace std;
 using namespace rapidjson;
 
@@ -27,6 +29,9 @@ const char *RCMP::FIELD_LOGIN_ID = "id";
 const char *RCMP::FIELD_INFORESP_ID = "id";
 const char *RCMP::FIELD_INFORESP_TYPE = "type";
 const char *RCMP::FIELD_INFORESP_NAME = "name";
+const char *RCMP::FIELD_MOVE_ANGLE = "angle";
+const char *RCMP::FIELD_MOVE_POWER = "power";
+const char *RCMP::FIELD_MOVE_DURATION = "duration";
 
 const char *RCMP::SIGNALING = "Signaling";
 const char *RCMP::SIG_LOGIN = "Login";
@@ -37,121 +42,8 @@ const char *RCMP::SIG_PING = "Ping";
 const char *RCMP::SIG_PONG = "Pong";
 const char *RCMP::SIG_INFO = "Info";
 const char *RCMP::SIG_INFO_RESP = "InfoResp";
-
-const char *RCMP::SCHEMA_SIG = ""
-                               "{"
-                               "   \"type\":\"object\","
-                               "   \"properties\":{"
-                               "       \"cmd\":{"
-                               "           \"type\":\"string\""
-                               "       },"
-                               "       \"seq\":{"
-                               "           \"type\":\"integer\""
-                               "       }"
-                               "   },"
-                               "   \"required\":[\"cmd\",\"seq\"]"
-                               "}";
-
-const char *RCMP::SCHEMA_SIG_LOGIN = ""
-                                     "{"
-                                     "   \"type\":\"object\","
-                                     "   \"properties\":{"
-                                     "       \"cmd\":{"
-                                     "           \"type\":\"string\""
-                                     "       },"
-                                     "       \"seq\":{"
-                                     "           \"type\":\"integer\""
-                                     "       },"
-                                     "       \"payload\":{"
-                                     "          \"type\":\"object\","
-                                     "          \"properties\":{"
-                                     "              \"ver\":{"
-                                     "                  \"type\":\"integer\""
-                                     "              },"
-                                     "              \"type\":{"
-                                     "                  \"type\":\"string\""
-                                     "              },"
-                                     "              \"id\":{"
-                                     "                  \"type\":\"string\""
-                                     "              }"
-                                     "          },"
-                                     "          \"required\":[\"ver\",\"type\",\"id\"]"
-                                     "       }"
-                                     "   },"
-                                     "   \"required\":[\"cmd\",\"seq\",\"payload\"]"
-                                     "}";
-
-const char *RCMP::SCHEMA_SIG_LOGIN_RESP = ""
-                                          "{"
-                                          "   \"type\":\"object\","
-                                          "   \"properties\":{"
-                                          "       \"cmd\":{"
-                                          "           \"type\":\"string\""
-                                          "       },"
-                                          "       \"seq\":{"
-                                          "           \"type\":\"integer\""
-                                          "       },"
-                                          "       \"errno\":{"
-                                          "           \"type\":\"integer\""
-                                          "       },"
-                                          "       \"errmsg\":{"
-                                          "           \"type\":\"string\""
-                                          "       },"
-                                          "       \"payload\":{"
-                                          "           \"type\":\"object\""
-                                          "       }"
-                                          "   },"
-                                          "   \"required\":[\"cmd\",\"seq\",\"errno\",\"errmsg\",\"payload\"]"
-                                          "}";
-
-const char *RCMP::SCHEMA_SIG_LOGOUT = ""
-                                      "{"
-                                      "   \"type\":\"object\","
-                                      "   \"properties\":{"
-                                      "       \"cmd\":{"
-                                      "           \"type\":\"string\""
-                                      "       },"
-                                      "       \"seq\":{"
-                                      "           \"type\":\"integer\""
-                                      "       }"
-                                      "   },"
-                                      "   \"required\":[\"cmd\",\"seq\"]"
-                                      "}";
-
-const char *RCMP::SCHEMA_SIG_LOGOUT_RESP = RCMP::SCHEMA_SIG_LOGIN_RESP;
-
-const char *RCMP::SCHEMA_SIG_PING = RCMP::SCHEMA_SIG_LOGOUT;
-const char *RCMP::SCHEMA_SIG_PONG = RCMP::SCHEMA_SIG_LOGOUT_RESP;
-
-const char *RCMP::SCHEMA_SIG_INFO = RCMP::SCHEMA_SIG_LOGOUT;
-const char *RCMP::SCHEMA_SIG_INFO_RESP = ""
-                                         "{"
-                                         "   \"type\":\"object\","
-                                         "   \"properties\":{"
-                                         "       \"cmd\":{"
-                                         "           \"type\":\"string\""
-                                         "       },"
-                                         "       \"seq\":{"
-                                         "           \"type\":\"integer\""
-                                         "       },"
-                                         "       \"payload\":{"
-                                         "          \"type\":\"object\","
-                                         "          \"properties\":{"
-                                         "              \"id\":{"
-                                         "                  \"type\":\"string\""
-                                         "              },"
-                                         "              \"type\":{"
-                                         "                  \"type\":\"string\""
-                                         "              },"
-                                         "              \"name\":{"
-                                         "                  \"type\":\"string\""
-                                         "              }"
-                                         "          },"
-                                         "          \"required\":[\"id\",\"type\",\"name\"]"
-                                         "       }"
-                                         "   },"
-                                         "   \"required\":[\"cmd\",\"seq\",\"payload\"]"
-                                         "}";
+const char *RCMP::SIG_MOVE = "Move";
+const char *RCMP::SIG_MOVE_RESP = "MoveResp";
 
 std::map<const char *, const char *> RCMP::gSigRespCmdMap;
 std::map<const char *, rapidjson::SchemaDocument *> RCMP::gSchemaMap;
@@ -313,6 +205,7 @@ void RCMP::init()
     gSigRespCmdMap[SIG_LOGOUT] = SIG_LOGOUT_RESP;
     gSigRespCmdMap[SIG_PING] = SIG_PONG;
     gSigRespCmdMap[SIG_INFO] = SIG_INFO_RESP;
+    gSigRespCmdMap[SIG_MOVE] = SIG_MOVE_RESP;
 
     // init schemas and validators
     initSchemaValidator(SIGNALING, SCHEMA_SIG);
@@ -324,6 +217,8 @@ void RCMP::init()
     initSchemaValidator(SIG_PONG, SCHEMA_SIG_PONG);
     initSchemaValidator(SIG_INFO, SCHEMA_SIG_INFO);
     initSchemaValidator(SIG_INFO_RESP, SCHEMA_SIG_INFO_RESP);
+    initSchemaValidator(SIG_MOVE, SCHEMA_SIG_MOVE);
+    initSchemaValidator(SIG_MOVE_RESP, SCHEMA_SIG_MOVE_RESP);
 }
 
 void RCMP::initSchemaValidator(const char *name, const char *schema)
@@ -401,6 +296,10 @@ bool RCMP::verifySig(Document &doc)
         pValidator = gValidatorMap[SIG_INFO];
     else if (strcasecmp(cmdField, SIG_INFO_RESP) == 0)
         pValidator = gValidatorMap[SIG_INFO_RESP];
+    else if (strcasecmp(cmdField, SIG_MOVE) == 0)
+        pValidator = gValidatorMap[SIG_MOVE];
+    else if (strcasecmp(cmdField, SIG_MOVE_RESP) == 0)
+        pValidator = gValidatorMap[SIG_MOVE_RESP];
     else
         return false; // unknown signaling cmd
 
