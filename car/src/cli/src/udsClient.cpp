@@ -86,7 +86,7 @@ bool UDSClient::sendRawString(std::string &req)
     return true;
 }
 
-bool UDSClient::sendSig(rapidjson::Document &req)
+bool UDSClient::sendSig(Document &req)
 {
     string json = RCMP::getJson(req);
     sendRawString(json);
@@ -433,7 +433,7 @@ bool UDSClient::onWrite(int epollfd, SESSION_t &sess)
     return true;
 }
 
-int UDSClient::parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig)
+int UDSClient::parseRawBuffer(SESSION_t &sess, Document &sig)
 {
     char *rawBuf = sess.recvBuf + sess.recvBufPos;
     int len = sess.recvBufEnd - sess.recvBufPos;
@@ -454,7 +454,7 @@ int UDSClient::parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig)
     return SUCCESS;
 }
 
-bool UDSClient::sendToBuf(SESSION_t &sess, rapidjson::Document &sig)
+bool UDSClient::sendToBuf(SESSION_t &sess, Document &sig)
 {
     // get corresponding json string
     string jsonSig = RCMP::getJson(sig);
