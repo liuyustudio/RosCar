@@ -32,12 +32,12 @@ public:
     /**
      * @brief callback function, for new signaling has been received
      * 
-     * @param sess: session data
+     * @param buffer: UDSClient buffer object
      * @param sig: received signaling object
      * @return true: continue working
      * @return false: stop working
      */
-    bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig);
+    bool onSignaling(UDSClient::BufType &buffer, rapidjson::Document &sig);
 
 protected:
     FUNC_SEND_SIGNALING sendSig;

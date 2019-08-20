@@ -18,7 +18,7 @@ using namespace roscar::car::roscar_common;
 static const char *DELIM = " ";
 static const char *UNIX_DOMAIN_SOCKET_URI = "/tmp/.roscar.car.interface.soc";
 
-bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig);
+bool onSignaling(UDSClient::BufType &buffer, rapidjson::Document &sig);
 bool sendSignaling(std::string &sig);
 bool process(const char *line);
 
@@ -67,10 +67,10 @@ int main(int argc, char **argv)
     ROS_INFO("\n\nROS Car CLI: Bye\n");
 }
 
-bool onSignaling(UDSClient::SESSION_t &sess, rapidjson::Document &sig)
+bool onSignaling(UDSClient::BufType &buffer, rapidjson::Document &sig)
 {
     ROS_DEBUG_STREAM("recv sig: " << RCMP::getJson(sig));
-    return cli.onSignaling(sess, sig);
+    return cli.onSignaling(buffer, sig);
 }
 
 bool sendSignaling(std::string &sig)

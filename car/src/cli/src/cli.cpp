@@ -49,7 +49,7 @@ bool Cli::onCmd(vector<string> &cmd)
     }
 }
 
-bool Cli::onSignaling(UDSClient::SESSION_t &sess, Document &sig)
+bool Cli::onSignaling(UDSClient::BufType &buffer, Document &sig)
 {
     const char *cmd = sig[RCMP::FIELD_CMD].GetString();
 

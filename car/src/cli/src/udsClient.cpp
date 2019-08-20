@@ -10,6 +10,7 @@
 #include "ros/ros.h"
 #include "roscar_common/error.h"
 #include "roscar_common/rcmp.h"
+#include "roscar_common/sessionBuffer.hpp"
 
 using namespace std;
 using namespace rapidjson;
@@ -25,8 +26,8 @@ namespace cli
 const int UDSClient::INTERVAL_EPOLL_RETRY = 100;
 const int UDSClient::INTERVAL_CONNECT_RETRY = 7;
 
-UDSClient::UDSClient(FUNC_ONSIGLAING cb_onSig)
-    : mUdsUri(), mStopFlag(true), mCb_OnSig(cb_onSig)
+UDSClient::UDSClient(OnSigCallbak onSigCallbak)
+    : mUdsUri(), mStopFlag(true), mOnSigCallbak(onSigCallbak)
 {
 }
 
@@ -100,10 +101,10 @@ void UDSClient::threadFunc()
     while (!mStopFlag)
     {
         int epollfd = 0;
-        int udsSoc = 0;
+        UdsSession_t udss;
 
         // init env
-        if (!initEnv(epollfd, udsSoc))
+        if (!initEnv(epollfd, udss))
         {
             ROS_ERROR("[UDSClient::threadFunc] init fail. sleep %d seconds",
                       INTERVAL_CONNECT_RETRY);
@@ -115,23 +116,22 @@ void UDSClient::threadFunc()
         try
         {
             int ret;
-            SESSION_t sess;
             list<string> reqList;
 
-            sess.soc = udsSoc;
-            sess.events = EPOLLIN;
+            udss.soc = udss.soc;
+            udss.events = EPOLLIN;
 
             struct epoll_event events[MAX_CLIENT_COUNT];
 
             // add soc into epoll driver
             struct epoll_event event;
-            event.events = sess.events;
-            event.data.fd = sess.soc;
-            if (epoll_ctl(epollfd, EPOLL_CTL_ADD, udsSoc, &event))
+            event.events = udss.events;
+            event.data.fd = udss.soc;
+            if (epoll_ctl(epollfd, EPOLL_CTL_ADD, udss.soc, &event))
             {
                 ROS_ERROR("[UDSClient::threadFunc] epoll add fail. Error[%d]: %s",
                           errno, strerror(errno));
-                closeEnv(epollfd, udsSoc);
+                closeEnv(epollfd, udss);
                 this_thread::sleep_for(chrono::seconds(INTERVAL_CONNECT_RETRY));
                 continue;
             }
@@ -158,14 +158,14 @@ void UDSClient::threadFunc()
                 }
                 else
                 {
-                    assert(events[0].data.fd == udsSoc);
+                    assert(events[0].data.fd == udss.soc);
 
-                    if (!onSoc(epollfd, events[0].events, sess))
+                    if (!onSoc(epollfd, events[0].events, udss))
                     {
-                        ROS_DEBUG("[UDSClient::threadFunc] Remove socket[%d]", udsSoc);
+                        ROS_DEBUG("[UDSClient::threadFunc] Remove soc[%d]", udss.soc);
 
                         // remove socket from epoll
-                        epoll_ctl(epollfd, EPOLL_CTL_DEL, udsSoc, NULL);
+                        epoll_ctl(epollfd, EPOLL_CTL_DEL, udss.soc, NULL);
 
                         // break thread routine loop
                         break;
@@ -181,13 +181,13 @@ void UDSClient::threadFunc()
 
                     for (auto &req : reqList)
                     {
-                        if (!sendToBuf(sess, req))
+                        if (!sendToBuf(udss.buffer, req))
                         {
                             ROS_ERROR("[UDSClient::threadFunc] send signaling to buffer fail, drop signalings.");
                             break;
                         }
 
-                        setWriteFlag(epollfd, sess, true);
+                        setWritable(epollfd, udss, true);
                     }
 
                     reqList.clear();
@@ -200,7 +200,7 @@ void UDSClient::threadFunc()
         }
 
         // close env
-        closeEnv(epollfd, udsSoc);
+        closeEnv(epollfd, udss);
 
         if (!mStopFlag)
         {
@@ -212,7 +212,7 @@ void UDSClient::threadFunc()
     ROS_DEBUG("[UDSClient::threadFunc] UDSClient thread stop");
 }
 
-bool UDSClient::initEnv(int & epollfd, int & soc)
+bool UDSClient::initEnv(int &epollfd, UdsSession_t &udss)
 {
     // init epoll file descriptor
     ROS_DEBUG("[UDSClient::initEnv] init epoll file descriptor");
@@ -220,7 +220,7 @@ bool UDSClient::initEnv(int & epollfd, int & soc)
     {
         ROS_ERROR("[UDSClient::initEnv] Failed to create epoll. Error[%d]: %s",
                   errno, strerror(errno));
-        closeEnv(epollfd, soc);
+        closeEnv(epollfd, udss);
         return false;
     }
 
@@ -229,11 +229,11 @@ bool UDSClient::initEnv(int & epollfd, int & soc)
         ROS_DEBUG("[UDSClient::initEnv] init Unix Domain Socket: %s", mUdsUri.c_str());
 
         // create socket
-        if ((soc = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+        if ((udss.soc = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
         {
             ROS_ERROR("[UDSClient::initEnv] Fail to create socket. Error[%d]: %s",
                       errno, strerror(errno));
-            closeEnv(epollfd, soc);
+            closeEnv(epollfd, udss);
             return false;
         }
 
@@ -242,11 +242,11 @@ bool UDSClient::initEnv(int & epollfd, int & soc)
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
         strncpy(addr.sun_path, mUdsUri.c_str(), sizeof(addr.sun_path) - 1);
-        if (connect(soc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        if (connect(udss.soc, (struct sockaddr *)&addr, sizeof(addr)) == -1)
         {
             ROS_ERROR("[UDSClient::initEnv] Fail to connect to UDS[%s]. Error[%d]: %s",
                       mUdsUri.c_str(), errno, strerror(errno));
-            closeEnv(epollfd, soc);
+            closeEnv(epollfd, udss);
             return false;
         }
     }
@@ -254,7 +254,7 @@ bool UDSClient::initEnv(int & epollfd, int & soc)
     return true;
 }
 
-void UDSClient::closeEnv(int & epollfd, int & soc)
+void UDSClient::closeEnv(int &epollfd, UdsSession_t &udss)
 {
     // close epoll file descriptor
     ROS_DEBUG("[UDSClient::closeEnv] close epoll file descriptor");
@@ -270,23 +270,24 @@ void UDSClient::closeEnv(int & epollfd, int & soc)
 
     // close Unix Domain Socket
     ROS_DEBUG("[UDSClient::closeEnv] close Unix Domain Socket");
-    if (soc)
+    if (udss.soc)
     {
-        if (close(soc))
+        if (close(udss.soc))
         {
             ROS_ERROR("[UDSClient::closeEnv] Fail to close Unix Domain Socket. Error[%d]: %s",
                       errno, strerror(errno));
         }
-        soc = 0;
+        udss.soc = 0;
     }
+    udss.init();
 }
 
-bool UDSClient::onSoc(int epollfd, unsigned int socEvents, SESSION_t &sess)
+bool UDSClient::onSoc(int epollfd, unsigned int socEvents, UdsSession_t &udss)
 {
     if (socEvents & EPOLLIN)
     {
         // available for read
-        if (!onRead(epollfd, sess))
+        if (!onRead(epollfd, udss))
         {
             ROS_DEBUG("[UDSClient::onSoc] read fail");
             return false;
@@ -295,7 +296,7 @@ bool UDSClient::onSoc(int epollfd, unsigned int socEvents, SESSION_t &sess)
     if (socEvents & EPOLLOUT)
     {
         // available for write
-        if (!onWrite(epollfd, sess))
+        if (!onWrite(epollfd, udss))
         {
             ROS_DEBUG("[UDSClient::onSoc] write fail");
             return false;
@@ -304,52 +305,54 @@ bool UDSClient::onSoc(int epollfd, unsigned int socEvents, SESSION_t &sess)
     if (socEvents & (EPOLLRDHUP | EPOLLHUP))
     {
         // socket has been closed
-        ROS_DEBUG("[UDSClient::onSoc] client socket[%d] has been closed", sess.soc);
+        ROS_DEBUG("[UDSClient::onSoc] client soc[%d] has been closed", udss.soc);
         return false;
     }
     if (socEvents & EPOLLERR)
     {
         // socket error
-        ROS_ERROR("[UDSClient::onSoc] client socket[%d] error", sess.soc);
+        ROS_ERROR("[UDSClient::onSoc] client soc[%d] error", udss.soc);
         return false;
     }
 
     return true;
 }
 
-bool UDSClient::onRead(int epollfd, SESSION_t &sess)
+bool UDSClient::onRead(int epollfd, UdsSession_t &udss)
 {
-    assert(sess.recvBufPos >= 0);
-    assert(sess.recvBufPos <= sess.recvBufEnd);
-    assert(sess.recvBufEnd < RECV_BUFFER_CAPACITY);
+    assert(udss.validate());
 
     // receive data from socket
-    int bufSize = RECV_BUFFER_CAPACITY - sess.recvBufEnd;
-    int nRet = recv(sess.soc,
-                    sess.recvBuf + sess.recvBufEnd,
-                    bufSize,
-                    0);
+    void *p;
+    int len;
+
+    std::tie(p, len) = udss.buffer.getRecvBuf();
+
+    int nRet = recv(udss.soc, p, len, 0);
     if (nRet <= 0)
     {
         if (nRet == 0)
         {
-            ROS_DEBUG("[UDSClient::onRead] session closed by peer(soc[%d])", sess.soc);
+            ROS_DEBUG("[UDSClient::onRead] session closed by peer(soc[%d])", udss.soc);
             return false;
         }
         else
         {
-            ROS_ERROR("[UDSClient::onRead] client[%d] read fail. Error[%d]: %s",
-                      sess.soc, errno, strerror(errno));
+            ROS_ERROR("[UDSClient::onRead] soc[%d] read fail. Error[%d]: %s",
+                      udss.soc, errno, strerror(errno));
             return false;
         }
     }
-    sess.recvBufEnd += nRet;
+
+    // adjust end pos
+    udss.buffer.incRecvEnd(nRet);
+    assert(udss.validate());
 
     // get signaling from raw buffer
     Document doc;
-    while (!sess.isRecvBufEmpty())
+    while (!udss.buffer.recvBufEmpty())
     {
-        nRet = parseRawBuffer(sess, doc);
+        nRet = parseSig(udss.buffer, doc);
         if (SUCCESS != nRet)
         {
             if (nRet == NEED_MORE_DATA)
@@ -358,54 +361,45 @@ bool UDSClient::onRead(int epollfd, SESSION_t &sess)
                 break;
             }
 
-            ROS_ERROR("[UDSClient::onRead] socket[%d] get signaling fail: %d", sess.soc, nRet);
+            ROS_ERROR("[UDSClient::onRead] soc[%d] get signaling fail: %d", udss.soc, nRet);
             return false;
         }
         else
         {
             // process signaling
-            if (!mCb_OnSig(sess, doc))
+            if (!mOnSigCallbak(udss.buffer, doc))
             {
-                ROS_ERROR("[UDSClient::onRead] socket[%d] process signaling fail", sess.soc);
+                ROS_ERROR("[UDSClient::onRead] soc[%d] process signaling fail", udss.soc);
                 return false;
             }
         }
     }
 
-    // adjust recv buffer pos variables
-    if (sess.isRecvBufFull())
+    // is recv buffer full
+    if (udss.buffer.recvBufFull())
     {
-        // defrag recv buffer
-        if (sess.defragRecvBuf())
-        {
-            return true;
-        }
-        else
-        {
-            ROS_ERROR("[UDSClient::onRead] defrage recv buffer for soc[%d] fail", sess.soc);
-            return false;
-        }
+        ROS_ERROR("[UDSClient::onRead] recv buf of soc[%d] full", udss.soc);
+        return false;
     }
 
     // are there data in send buffer?
-    if (sess.sendBufPos ^ sess.sendBufEnd)
+    if (!udss.buffer.sendBufEmpty())
     {
-        return setWriteFlag(epollfd, sess, true);
+        return setWritable(epollfd, udss, true);
     }
 
     return true;
 }
 
-bool UDSClient::onWrite(int epollfd, SESSION_t &sess)
+bool UDSClient::onWrite(int epollfd, UdsSession_t &udss)
 {
-    assert(sess.recvBufPos >= 0);
-    assert(sess.recvBufPos <= sess.recvBufEnd);
-    assert(sess.recvBufEnd < RECV_BUFFER_CAPACITY);
+    assert(udss.validate());
 
-    int nRet = send(sess.soc,
-                    &sess.sendBuf[sess.sendBufPos],
-                    sess.sendBufEnd - sess.sendBufPos,
-                    0);
+    void *p;
+    int len;
+    std::tie(p, len) = udss.buffer.getSendData();
+
+    int nRet = send(udss.soc, p, len, 0);
     if (nRet < 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -413,138 +407,110 @@ bool UDSClient::onWrite(int epollfd, SESSION_t &sess)
             return true;
         }
 
-        ROS_ERROR("[UDSClient::onWrite] socket[%d] write fail. Error[%d]: %s",
-                  sess.soc, errno, strerror(errno));
+        ROS_ERROR("[UDSClient::onWrite] soc[%d] send fail. Error: %d - %s",
+                  udss.soc, errno, strerror(errno));
         return false;
     }
 
-    // ROS_DEBUG("[UDSClient::onWrite] send %d bytes", nRet);
+    // ROS_DEBUG("[UDSClient::onWrite] soc[%d] send %d bytes", udss.soc, nRet);
 
-    sess.sendBufPos += nRet;
-    if (sess.recvBufPos == sess.recvBufEnd)
+    udss.buffer.incSendStart(nRet);
+    if (udss.buffer.sendBufEmpty())
     {
-        // no more data to send
-        sess.recvBufPos = sess.recvBufEnd = 0;
+        // stop send
 
-        // remove epoll write event
-        return setWriteFlag(epollfd, sess, false);
+        // ROS_DEBUG("[UDSClient::onWrite] soc[%d] stop send", udss.soc);
+
+        return setWritable(epollfd, udss, false);
     }
 
     return true;
 }
 
-int UDSClient::parseRawBuffer(SESSION_t &sess, Document &sig)
+bool UDSClient::setWritable(int epollfd, UdsSession_t &udss, bool writable)
 {
-    char *rawBuf = sess.recvBuf + sess.recvBufPos;
-    int len = sess.recvBufEnd - sess.recvBufPos;
+    bool update = false;
+    struct epoll_event event;
 
-    int nRet = RCMP::parse(rawBuf, len, sig);
+    if (writable)
+    {
+        // set EPOLLOUT
+        update = 0 == (udss.events & EPOLLOUT) ? udss.events |= EPOLLOUT, true : false;
+    }
+    else
+    {
+        // remove EPOLLOUT
+        update = 1 == (udss.events & EPOLLOUT) ? udss.events &= ~EPOLLOUT, true : false;
+    }
+
+    if (update)
+    {
+        event.data.fd = udss.soc;
+        event.events = udss.events;
+        if (epoll_ctl(epollfd, EPOLL_CTL_MOD, udss.soc, &event))
+        {
+            ROS_ERROR("[UDSClient::setWritable] epoll_ctl for soc[%d] fail. Error[%d]: %s",
+                      udss.soc, errno, strerror(errno));
+            return false;
+        }
+    }
+
+    return true;
+}
+
+int UDSClient::parseSig(BufType &buffer, Document &sig)
+{
+    char *p;
+    int len;
+    tie(p, len) = buffer.getRecvData();
+
+    int nRet = RCMP::parse(p, len, sig);
     if (nRet != SUCCESS)
     {
+        ROS_ERROR("[UDSClient::parseSig] RCMP parse fail.");
         return nRet;
     }
 
     // adjust buffer pos
-    sess.recvBufPos += len;
-    if (sess.recvBufPos == sess.recvBufEnd)
-    {
-        sess.recvBufPos = sess.recvBufEnd = 0;
-    }
+    buffer.incRecvStart(len);
 
     return SUCCESS;
 }
 
-bool UDSClient::sendToBuf(SESSION_t &sess, Document &sig)
+bool UDSClient::sendToBuf(BufType &buffer, Document &sig)
 {
-    // get corresponding json string
     string jsonSig = RCMP::getJson(sig);
-
-    return sendToBuf(sess, jsonSig);
+    return sendToBuf(buffer, jsonSig);
 }
 
-bool UDSClient::sendToBuf(SESSION_t &sess, string &sig)
+bool UDSClient::sendToBuf(BufType &buffer, string &sig)
 {
     // check empty send buffer size
     auto len = sig.length();
-    if (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd < len)
-    {
-        if (sess.sendBufPos == 0 ||
-            (RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd + sess.sendBufPos < len))
-        {
-            // send buffer full
-            ROS_ERROR("[UDSClient::sendToBuf] send buffer fulll(soc: [%d]", sess.soc);
-            return false;
-        }
+    char *p;
+    int capacity;
 
-        // defrag buffer
-        int bufLen = sess.sendBufEnd - sess.sendBufPos;
-        memmove(sess.sendBuf, sess.sendBuf + sess.sendBufPos, bufLen);
-        sess.sendBufPos = 0;
-        sess.sendBufEnd = bufLen;
+    if ((tie(p, capacity) = buffer.getSendBuf(), capacity < len) &&
+        (!buffer.defragSendBuf() ||                                 // defrag
+         (tie(p, capacity) = buffer.getSendBuf(), capacity < len))) // try again
+    {
+        // send buffer full
+        ROS_ERROR("[UDSClient::sendToBuf] send buffer fulll");
+        return false;
     }
 
-    int nRet = RCMP::fillFrame(sess.sendBuf + sess.sendBufEnd,
-                               RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd,
-                               sig.c_str(),
-                               len);
+    int nRet = RCMP::fillFrame(p, capacity, sig.c_str(), len);
     if (nRet > 0)
     {
-        sess.sendBufEnd += nRet;
+        buffer.incSendEnd(nRet);
         return true;
     }
     else
     {
-        // send buffer full
+        // buffer full
         ROS_ERROR("[UDSClient::sendToBuf] fill frame fail.");
         return false;
     }
-
-    return true;
-}
-
-bool UDSClient::setWriteFlag(int epollfd, SESSION_t &sess, bool writeFlag)
-{
-    // are there data in send buffer?
-    if (writeFlag)
-    {
-        // set epoll write flag for this socket
-        if (!(sess.events & EPOLLOUT))
-        {
-            // ROS_DEBUG("[UDSClient::setWriteFlag] set send flag");
-            sess.events |= EPOLLOUT;
-
-            struct epoll_event event;
-            event.data.fd = sess.soc;
-            event.events = sess.events;
-            if (epoll_ctl(epollfd, EPOLL_CTL_MOD, sess.soc, &event))
-            {
-                ROS_ERROR("[UDSClient::setWriteFlag] Failed to add poll-out event for client[%d]. Error[%d]: %s",
-                          sess.soc, errno, strerror(errno));
-                return false;
-            }
-        }
-    }
-    else
-    {
-        // remove epoll write flag from this socket
-        if (sess.events & EPOLLOUT)
-        {
-            // ROS_DEBUG("[UDSClient::setWriteFlag] remove send flag");
-            sess.events &= ~EPOLLOUT;
-
-            struct epoll_event event;
-            event.data.fd = sess.soc;
-            event.events = sess.events;
-            if (epoll_ctl(epollfd, EPOLL_CTL_MOD, sess.soc, &event))
-            {
-                ROS_ERROR("[UDSClient::setWriteFlag] Failed to remove poll-out event for client[%d]. Error[%d]: %s",
-                          sess.soc, errno, strerror(errno));
-                return false;
-            }
-        }
-    }
-
-    return true;
 }
 
 } // namespace cli
