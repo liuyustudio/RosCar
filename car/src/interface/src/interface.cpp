@@ -24,34 +24,34 @@ void Interface::init(ros::NodeHandle &nh)
     gSvrMove = nh.serviceClient<pilot::Move>("move");
 }
 
-bool Interface::onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig)
+bool Interface::onSignaling(UDS::BufType &buffer, rapidjson::Document &sig)
 {
     const char *cmd = sig[RCMP::FIELD_CMD].GetString();
 
     if (strcasecmp(cmd, RCMP::SIG_PING) == 0)
-        return onSigPing(sess, sig);
+        return onSigPing(buffer, sig);
     else if (strcasecmp(cmd, RCMP::SIG_PONG) == 0)
-        return onSigPong(sess, sig);
+        return onSigPong(buffer, sig);
     else if (strcasecmp(cmd, RCMP::SIG_INFO) == 0)
-        return onSigInfo(sess, sig);
+        return onSigInfo(buffer, sig);
     else if (strcasecmp(cmd, RCMP::SIG_MOVE) == 0)
-        return onSigMove(sess, sig);
+        return onSigMove(buffer, sig);
     else
         return false; // unknown signaling cmd
 }
 
-bool Interface::onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig)
+bool Interface::onSigPing(UDS::BufType &buffer, rapidjson::Document &sig)
 {
-    return sendToBuf(sess, RCMP::convertToResp(sig));
+    return sendToBuf(buffer, RCMP::convertToResp(sig));
 }
 
-bool Interface::onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig)
+bool Interface::onSigPong(UDS::BufType &buffer, rapidjson::Document &sig)
 {
     ROS_DEBUG("[Interface::onSigPong] recv PONG.");
     return true;
 }
 
-bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
+bool Interface::onSigInfo(UDS::BufType &buffer, rapidjson::Document &sig)
 {
     pilot::Info info;
     if (!gSvrInfo.call(info))
@@ -72,10 +72,10 @@ bool Interface::onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig)
                       Value::StringRefType(info.response.name.c_str()),
                       alloc);
 
-    return sendToBuf(sess, RCMP::convertToResp(sig, &payload));
+    return sendToBuf(buffer, RCMP::convertToResp(sig, &payload));
 }
 
-bool Interface::onSigMove(UDS::SESSION_t &sess, rapidjson::Document &sig)
+bool Interface::onSigMove(UDS::BufType &buffer, rapidjson::Document &sig)
 {
     pilot::Move move;
 
@@ -89,25 +89,26 @@ bool Interface::onSigMove(UDS::SESSION_t &sess, rapidjson::Document &sig)
         return false;
     }
 
-    return sendToBuf(sess,
+    return sendToBuf(buffer,
                      RCMP::convertToResp(sig,
                                          move.response.err_code,
                                          move.response.err_msg.c_str()));
 }
 
-bool Interface::sendToBuf(UDS::SESSION_t &sess, rapidjson::Document &sig)
+bool Interface::sendToBuf(UDS::BufType &buffer, rapidjson::Document &sig)
 {
+    char *p;
+    int len;
+    tie(p, len) = buffer.getSendBuf();
+
     // wrap signaling in RCMPFrame, then put it into sending buffer
-    int nRet = RCMP::fillFrame(sess.sendBuf + sess.sendBufEnd,
-                               RCMP::RCMP_MAXPAYLOAD - sess.sendBufEnd,
-                               sig);
+    int nRet = RCMP::fillFrame(p, len, sig);
     if (0 == nRet)
     {
-        ROS_ERROR("[Interface::sendToBuf] fill buffer fail. Error: %d", nRet);
+        ROS_ERROR("[Interface::sendToBuf] fill buffer fail.");
         return false;
     }
-
-    sess.sendBufEnd += nRet;
+    buffer.incSendEnd(nRet);
 
     return true;
 }
