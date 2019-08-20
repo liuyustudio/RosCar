@@ -5,7 +5,6 @@
 #include <mutex>
 #include <thread>
 #include <string>
-#include <list>
 #include <vector>
 #include "rapidjson/document.h"
 #include "roscar_common/rcmp.h"
@@ -53,29 +52,30 @@ public:
     bool start(const char *udsUri);
     void stop();
 
-    bool sendRawString(std::string &req);
-    bool sendSig(rapidjson::Document &req);
+    bool sendSig(std::string &req);
+    inline bool sendSig(std::string &&req) { return sendSig(req); }
+    inline bool sendSig(rapidjson::Document &req) { return sendSig(roscar_common::RCMP::getJson(req)); }
 
 protected:
     void threadFunc();
-    bool initEnv(int &epollfd, UdsSession_t &soc);
-    void closeEnv(int &epollfd, UdsSession_t &soc);
+    bool initEnv();
+    void closeEnv();
 
-    bool onSoc(int epollfd, unsigned int socEvents, UdsSession_t &sess);
-    bool onRead(int epollfd, UdsSession_t &sess);
-    bool onWrite(int epollfd, UdsSession_t &sess);
-    bool setWritable(int epollfd, UdsSession_t &sess, bool writable);
+    bool onSoc(unsigned int socEvents, UdsSession_t &sess);
+    bool onRead(UdsSession_t &sess);
+    bool onWrite(UdsSession_t &sess);
+    bool setSocWritable(UdsSession_t &sess, bool writable);
 
     int parseSig(BufType &buffer, rapidjson::Document &sig);
-    bool sendToBuf(BufType &buffer, rapidjson::Document &sig);
-    bool sendToBuf(BufType &buffer, std::string &sig);
 
     std::string mUdsUri;
+    int mEpollfd;
+    UdsSession_t mUdsSession;
+
     std::vector<std::thread> mThreadArray;
     bool mStopFlag;
 
     std::mutex mAccessMutex;
-    std::list<std::string> mReqStrList;
 
     OnSigCallbak mOnSigCallbak;
 };

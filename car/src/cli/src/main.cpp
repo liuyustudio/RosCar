@@ -76,7 +76,7 @@ bool onSignaling(UDSClient::BufType &buffer, rapidjson::Document &sig)
 bool sendSignaling(std::string &sig)
 {
     ROS_DEBUG("send sig: %s", sig.c_str());
-    return udsClient.sendRawString(sig);
+    return udsClient.sendSig(sig);
 }
 
 bool process(const char *line)
