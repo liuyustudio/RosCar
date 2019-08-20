@@ -34,8 +34,8 @@ struct SessionBuffer
 
     inline bool validate()
     {
-        return recvStart >= 0 && recvStart <= recvEnd && recvEnd < RECV_CAPACITY &&
-               sendStart >= 0 && sendStart <= sendEnd && sendEnd < SEND_CAPACITY;
+        return recvStart >= 0 && recvStart <= recvEnd && recvEnd <= RECV_CAPACITY &&
+               sendStart >= 0 && sendStart <= sendEnd && sendEnd <= SEND_CAPACITY;
     }
 
     inline bool recvBufEmpty() { return recvStart == recvEnd; }
