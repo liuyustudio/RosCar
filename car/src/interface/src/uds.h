@@ -7,6 +7,7 @@
 #include <vector>
 #include "rapidjson/document.h"
 #include "roscar_common/rcmp.h"
+#include "roscar_common/sessionBuffer.hpp"
 
 namespace roscar
 {
@@ -18,61 +19,32 @@ namespace interface
 class UDS
 {
 public:
+    using BufType = roscar_common::SessionBuffer<>;
+    using OnSigCallbak = bool (*)(BufType &, rapidjson::Document &);
+
     static const int INTERVAL_EPOLL_RETRY;
     static const int INTERVAL_CONNECT_RETRY;
 
-    static const int EPOLL_MAX_EVENTS = 16;
-    static const int MAX_CLIENT_COUNT = 8;
-    static const int RECV_BUFFER_CAPACITY = 8 * 1024;
-    static const int SEND_BUFFER_CAPACITY = 8 * 1024;
+    static const int EPOLL_MAX_EVENTS = 8;
 
-    typedef struct SESSION
+    typedef struct _UdsSession
     {
         int soc;
-        unsigned int events;
-        unsigned int recvBufPos = 0;
-        unsigned int recvBufEnd = 0;
-        unsigned int sendBufPos = 0;
-        unsigned int sendBufEnd = 0;
-        char recvBuf[RECV_BUFFER_CAPACITY];
-        char sendBuf[SEND_BUFFER_CAPACITY];
+        uint32_t events;
+        BufType buffer;
 
-        SESSION() { init(); }
-        inline void init() { soc = events = recvBufPos = recvBufEnd = sendBufPos = sendBufEnd = 0; }
-        inline bool isRecvBufEmpty() { return recvBufPos == recvBufEnd; }
-        inline bool isRecvBufFull() { return RECV_BUFFER_CAPACITY == recvBufEnd; }
-        inline bool isSendBufEmpty() { return sendBufPos == sendBufEnd; }
-        inline bool isSendBufFull() { return SEND_BUFFER_CAPACITY == sendBufEnd; }
-        inline bool defragRecvBuf()
+        inline _UdsSession(int _soc = 0, uint32_t _events = 0) { init(_soc, _events); }
+        inline void init(int _soc = 0, uint32_t _events = 0)
         {
-            if (0 == recvBufPos)
-            {
-                return isSendBufFull() ? false : true;
-            }
-
-            memmove(recvBuf, recvBuf + recvBufPos, recvBufPos);
-            recvBufEnd -= recvBufPos;
-            recvBufPos = 0;
-            return true;
+            soc = _soc;
+            events = _events;
+            buffer.init();
         }
-        inline bool defragSendBuf()
-        {
-            if (0 == sendBufPos)
-            {
-                return isSendBufFull() ? false : true;
-            }
 
-            memmove(sendBuf, sendBuf + sendBufPos, sendBufPos);
-            sendBufEnd -= sendBufPos;
-            sendBufPos = 0;
-            return true;
-        }
-        inline bool defrag() { return defragRecvBuf() && defragSendBuf(); }
-    } SESSION_t;
+        inline bool validate() { return soc && buffer.validate(); }
+    } UdsSession_t;
 
-    typedef bool (*FUNC_ONSIGLAING)(UDS::SESSION_t &sess, rapidjson::Document &sig);
-
-    UDS(FUNC_ONSIGLAING cb_onSig);
+    UDS(OnSigCallbak onSigCallbak);
     virtual ~UDS();
 
     bool start(const char *udsUri);
@@ -81,28 +53,30 @@ public:
     inline void join()
     {
         for (auto &t : mThreadArray)
-        {
             t.join();
-        }
     }
 
 protected:
     void threadFunc();
-    bool initEnv(int & epollfd, int & soc);
-    void closeEnv(int & epollfd, int & soc);
+    bool initEnv();
+    void closeEnv();
 
-    bool onSession(int epollfd, unsigned int socEvents, SESSION_t &sess);
-    bool onRead(int epollfd, SESSION_t &sess);
-    bool onWrite(int epollfd, SESSION_t &sess);
-    int parseSig(SESSION_t &sess, rapidjson::Document &doc);
+    bool onSoc(unsigned int socEvents, UdsSession_t &sess);
+    bool onRead(UdsSession_t &sess);
+    bool onWrite(UdsSession_t &sess);
+    bool setSocWritable(UdsSession_t &sess, bool writable);
+
+    int parseSig(BufType &buffer, rapidjson::Document &sig);
 
     std::string mUdsUri;
+    int mEpollfd;
+    int mSrvSoc;
+
+    std::vector<std::thread> mThreadArray;
     bool mStopFlag;
 
     std::mutex mAccessMutex;
-    std::vector<std::thread> mThreadArray;
-
-    FUNC_ONSIGLAING mCb_OnSig;
+    OnSigCallbak mOnSigCallbak;
 };
 
 } // namespace interface

@@ -21,7 +21,7 @@ class UDSClient
 {
 public:
     using BufType = roscar_common::SessionBuffer<>;
-    using OnSigCallbak = bool (*)(BufType &buffer, rapidjson::Document &sig);
+    using OnSigCallbak = bool (*)(BufType &, rapidjson::Document &);
 
     static const int INTERVAL_EPOLL_RETRY;
     static const int INTERVAL_CONNECT_RETRY;
