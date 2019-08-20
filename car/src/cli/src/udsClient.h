@@ -1,14 +1,14 @@
-#ifndef _ROSCAR_CAR_CLI_UDS_H_
-#define _ROSCAR_CAR_CLI_UDS_H_
+#ifndef _ROSCAR_CAR_CLI_UDSCLIENT_H_
+#define _ROSCAR_CAR_CLI_UDSCLIENT_H_
 
 #include <string.h>
 #include <mutex>
 #include <thread>
 #include <string>
-#include <list>
 #include <vector>
 #include "rapidjson/document.h"
 #include "roscar_common/rcmp.h"
+#include "roscar_common/sessionBuffer.hpp"
 
 namespace roscar
 {
@@ -20,88 +20,66 @@ namespace cli
 class UDSClient
 {
 public:
-    static const int EPOLL_TIMEOUT = 1 * 1000;
-    static const int EPOLL_RETRY_INTERVAL = 1 * 100 * 1000;
-    static const int EPOLL_MAX_EVENTS = 16;
-    static const int MAX_CLIENT_COUNT = 8;
-    static const int RECV_BUFFER_CAPACITY = 8 * 1024;
-    static const int SEND_BUFFER_CAPACITY = 8 * 1024;
+    using BufType = roscar_common::SessionBuffer<>;
+    using OnSigCallbak = bool (*)(BufType &, rapidjson::Document &);
 
-    typedef struct SESSION
+    static const int INTERVAL_EPOLL_RETRY;
+    static const int INTERVAL_CONNECT_RETRY;
+
+    static const int EPOLL_MAX_EVENTS = 8;
+
+    typedef struct _UdsSession
     {
         int soc;
-        unsigned int events = 0;
-        unsigned int recvBufPos = 0;
-        unsigned int recvBufEnd = 0;
-        unsigned int sendBufPos = 0;
-        unsigned int sendBufEnd = 0;
-        char recvBuf[RECV_BUFFER_CAPACITY];
-        char sendBuf[SEND_BUFFER_CAPACITY];
+        uint32_t events;
+        BufType buffer;
 
-        inline bool isSendBufFull() { return SEND_BUFFER_CAPACITY == sendBufEnd; }
-        inline bool isRecvBufFull() { return RECV_BUFFER_CAPACITY == recvBufEnd; }
-        inline bool defragRecvBuf()
+        inline _UdsSession(int _soc = 0, uint32_t _events = 0) { init(_soc, _events); }
+        inline void init(int _soc = 0, uint32_t _events = 0)
         {
-            if (0 == recvBufPos)
-            {
-                return isSendBufFull() ? false : true;
-            }
-
-            memmove(recvBuf, recvBuf + recvBufPos, recvBufPos);
-            recvBufEnd -= recvBufPos;
-            recvBufPos = 0;
-            return true;
+            soc = _soc;
+            events = _events;
+            buffer.init();
         }
-        inline bool defragSendBuf()
-        {
-            if (0 == sendBufPos)
-            {
-                return isSendBufFull() ? false : true;
-            }
 
-            memmove(sendBuf, sendBuf + sendBufPos, sendBufPos);
-            sendBufEnd -= sendBufPos;
-            sendBufPos = 0;
-            return true;
-        }
-        inline bool defrag() { return defragRecvBuf() && defragSendBuf(); }
-    } SESSION_t;
+        inline bool validate() { return soc && buffer.validate(); }
+    } UdsSession_t;
 
-    typedef bool (*FUNC_ONSIGLAING)(UDSClient::SESSION_t &sess, rapidjson::Document &sig);
-
-    UDSClient(FUNC_ONSIGLAING cb_onSig);
+    UDSClient(OnSigCallbak onSigCallbak);
     virtual ~UDSClient();
 
     bool start(const char *udsUri);
     void stop();
 
-    bool sendRawString(std::string &req);
-    bool sendSig(rapidjson::Document &req);
+    bool sendSig(std::string &req);
+    inline bool sendSig(std::string &&req) { return sendSig(req); }
+    inline bool sendSig(rapidjson::Document &req) { return sendSig(roscar_common::RCMP::getJson(req)); }
 
 protected:
     void threadFunc();
+    bool initEnv();
+    void closeEnv();
 
-    bool onSoc(unsigned int socEvents, SESSION_t &sess);
-    bool onRead(SESSION_t &sess);
-    bool onWrite(SESSION_t &sess);
-    int parseRawBuffer(SESSION_t &sess, rapidjson::Document &sig);
-    bool sendToBuf(SESSION_t &sess, rapidjson::Document &sig);
-    bool sendToBuf(SESSION_t &sess, std::string &sig);
-    bool setWriteFlag(SESSION_t &sess, bool writeFlag = true);
+    bool onSoc(unsigned int socEvents, UdsSession_t &sess);
+    bool onRead(UdsSession_t &sess);
+    bool onWrite(UdsSession_t &sess);
+    bool setSocWritable(UdsSession_t &sess, bool writable);
+
+    int parseSig(BufType &buffer, rapidjson::Document &sig);
+
+    std::string mUdsUri;
+    int mEpollfd;
+    UdsSession_t mUdsSession;
 
     std::vector<std::thread> mThreadArray;
-    bool mStopUDS;
-    int mEpollfd = 0;
-    int mUdsSoc = 0;
+    bool mStopFlag;
 
-    std::mutex mReqStrListMutex;
-    std::list<std::string> mReqStrList;
-
-    FUNC_ONSIGLAING mCb_OnSig;
+    std::mutex mAccessMutex;
+    OnSigCallbak mOnSigCallbak;
 };
 
 } // namespace cli
 } // namespace car
 } // namespace roscar
 
-#endif // _ROSCAR_CAR_CLI_UDS_H_
+#endif // _ROSCAR_CAR_CLI_UDSCLIENT_H_

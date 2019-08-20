@@ -9,7 +9,7 @@
 #include "rapidjson/schema.h"
 #include "rapidjson/stringbuffer.h"
 
-#include "roscar_common/error.h"
+#include "error.h"
 
 namespace roscar
 {

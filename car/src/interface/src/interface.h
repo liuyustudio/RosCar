@@ -20,18 +20,18 @@ protected:
 
 public:
     // overide
-    static bool onSignaling(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool onSignaling(UDS::BufType &buffer, rapidjson::Document &sig);
 
     // init Interface runtime environment
     static void init(ros::NodeHandle &nh);
 
 protected:
-    static bool onSigPing(UDS::SESSION_t &sess, rapidjson::Document &sig);
-    static bool onSigPong(UDS::SESSION_t &sess, rapidjson::Document &sig);
-    static bool onSigInfo(UDS::SESSION_t &sess, rapidjson::Document &sig);
-    static bool onSigMove(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool onSigPing(UDS::BufType &buffer, rapidjson::Document &sig);
+    static bool onSigPong(UDS::BufType &buffer, rapidjson::Document &sig);
+    static bool onSigInfo(UDS::BufType &buffer, rapidjson::Document &sig);
+    static bool onSigMove(UDS::BufType &buffer, rapidjson::Document &sig);
 
-    static bool sendToBuf(UDS::SESSION_t &sess, rapidjson::Document &sig);
+    static bool sendToBuf(UDS::BufType &buffer, rapidjson::Document &sig);
 
     static ros::ServiceClient gSvrInfo;
     static ros::ServiceClient gSvrMove;
