@@ -1,5 +1,5 @@
-#ifndef _ROSCAR_CAR_CLI_UDS_H_
-#define _ROSCAR_CAR_CLI_UDS_H_
+#ifndef _ROSCAR_CAR_CLI_UDSCLIENT_H_
+#define _ROSCAR_CAR_CLI_UDSCLIENT_H_
 
 #include <string.h>
 #include <mutex>
@@ -26,8 +26,7 @@ public:
     static const int INTERVAL_EPOLL_RETRY;
     static const int INTERVAL_CONNECT_RETRY;
 
-    static const int EPOLL_MAX_EVENTS = 16;
-    static const int MAX_CLIENT_COUNT = 8;
+    static const int EPOLL_MAX_EVENTS = 8;
 
     typedef struct _UdsSession
     {
@@ -35,11 +34,11 @@ public:
         uint32_t events;
         BufType buffer;
 
-        inline _UdsSession() { init(); }
-        inline void init()
+        inline _UdsSession(int _soc = 0, uint32_t _events = 0) { init(_soc, _events); }
+        inline void init(int _soc = 0, uint32_t _events = 0)
         {
-            soc = 0;
-            events = 0;
+            soc = _soc;
+            events = _events;
             buffer.init();
         }
 
@@ -76,7 +75,6 @@ protected:
     bool mStopFlag;
 
     std::mutex mAccessMutex;
-
     OnSigCallbak mOnSigCallbak;
 };
 
@@ -84,4 +82,4 @@ protected:
 } // namespace car
 } // namespace roscar
 
-#endif // _ROSCAR_CAR_CLI_UDS_H_
+#endif // _ROSCAR_CAR_CLI_UDSCLIENT_H_
