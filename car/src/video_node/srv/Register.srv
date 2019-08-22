@@ -1,0 +1,6 @@
+string node_id
+string node_name
+string video_info
+---
+int32 err_code
+string err_msg
