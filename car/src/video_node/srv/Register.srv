@@ -1,5 +1,5 @@
 string node_id
-string node_name
+string video_id
 string video_info
 ---
 int32 err_code

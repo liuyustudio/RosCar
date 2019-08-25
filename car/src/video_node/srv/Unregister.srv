@@ -1,6 +1,5 @@
-float32 angle
-float32 power
-float32 duration
+string node_id
+string video_id
 ---
 int32 err_code
 string err_msg
