@@ -29,8 +29,8 @@ Service::Service(ros::NodeHandle &nodeHandle)
     mSrvUnregister = mNodeHandle.advertiseService("unregister", onUnregister);
 }
 
-bool Service::onList(::video_node::List::Request &req,
-                     ::video_node::List::Response &res)
+bool Service::onList(video_node::List::Request &req,
+                     video_node::List::Response &res)
 {
     ROS_DEBUG("list registed video source");
 
@@ -59,8 +59,8 @@ bool Service::onList(::video_node::List::Request &req,
     return true;
 }
 
-bool Service::onRegister(::video_node::Register::Request &req,
-                         ::video_node::Register::Response &res)
+bool Service::onRegister(video_node::Register::Request &req,
+                         video_node::Register::Response &res)
 {
     ROS_DEBUG("video source register:");
     ROS_DEBUG_STREAM("node_id: " << req.node_id);
@@ -68,16 +68,15 @@ bool Service::onRegister(::video_node::Register::Request &req,
     ROS_DEBUG_STREAM("video_info: " << req.video_info);
 
     lock_guard<mutex> lock(gAccessMutex);
-    tie(res.err_code, res.err_msg) =
-        gVideoDB.addVideo(req.node_id.c_str(),
-                          req.video_id.c_str(),
-                          req.video_info.c_str());
+    tie(res.err_code, res.err_msg) = gVideoDB.addVideo(req.node_id.c_str(),
+                                                       req.video_id.c_str(),
+                                                       req.video_info.c_str());
 
     return SUCCESS == res.err_code;
 }
 
-bool Service::onUnregister(::video_node::Unregister::Request &req,
-                           ::video_node::Unregister::Response &res)
+bool Service::onUnregister(video_node::Unregister::Request &req,
+                           video_node::Unregister::Response &res)
 {
     ROS_DEBUG("unregister video source:");
     ROS_DEBUG_STREAM("node_id: " << req.node_id);
