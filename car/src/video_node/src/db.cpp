@@ -120,6 +120,24 @@ void DB::getVideoList(list<Video_t> &videoList) const
     }
 }
 
+DB::ReturnType DB::findVideo(const uint32_t id, Video_t &video)
+{
+    for (auto &_video : mVideoList)
+    {
+        if (id == _video.id)
+        {
+            video = _video;
+            return ReturnType(SUCCESS, "");
+        }
+    }
+
+    char buf[MAX_ERRBUF_SIZE];
+    snprintf(buf, MAX_ERRBUF_SIZE, "[DB::findVideo] video[%u] not exist.", id);
+    ROS_ERROR_STREAM(buf);
+
+    return ReturnType(ERROR, string(buf));
+}
+
 } // namespace videonode
 } // namespace car
 } // namespace roscar

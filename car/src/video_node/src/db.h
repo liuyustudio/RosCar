@@ -28,6 +28,7 @@ public:
     bool hasVideo(const char *nodeId, const char *nodeVideoId) const;
     ReturnType getVideo(const char *nodeId, const char *nodeVideoId, Video_t &video) const;
     void getVideoList(std::list<Video_t> &videoList) const;
+    ReturnType findVideo(const uint32_t id, Video_t &video);
 
 protected:
     std::list<Video_t> mVideoList;
