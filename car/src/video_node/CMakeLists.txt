@@ -139,6 +139,7 @@ add_executable(${PROJECT_NAME}
   src/main.cpp
   src/db.cpp
   src/service.cpp
+  src/videoTopic.cpp
 )
 
 ## Rename C++ executable without prefix
