@@ -23,17 +23,19 @@ public:
 
     typedef struct _Session
     {
-        char name[TOPIC_NAME_LENGTH + 4];
-        int sourceFd;
-        epoll_event event;
-        SessionBufType buffer;
+        int fd;
+        uint32_t events;
+        char name[TOPIC_NAME_LENGTH + 1];
     } Session_t;
 
 private:
     VideoTopic() = default;
 
 public:
-    static void initSession(Session_t &session);
+    static bool initSession(Session_t & session, int epollfd, const char * host, int port);
+    static void closeSession(Session_t & session);
+    static bool onRead(Session_t &session);
+    static bool sendTopic(Session_t &session);
 };
 
 } // namespace videonode
