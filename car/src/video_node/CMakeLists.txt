@@ -139,6 +139,7 @@ add_executable(${PROJECT_NAME}
   src/main.cpp
   src/db.cpp
   src/service.cpp
+  src/topicMgr.cpp
   src/videoTopic.cpp
 )
 

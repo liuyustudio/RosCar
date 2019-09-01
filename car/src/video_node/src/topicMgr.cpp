@@ -8,7 +8,6 @@
 #include <chrono>
 #include <exception>
 
-#include "ros/ros.h"
 #include "roscar_common/error.h"
 
 using namespace std;
@@ -26,6 +25,13 @@ const int TopicMgr::INTERVAL_CONNECT_RETRY = 7;
 
 bool TopicMgr::start()
 {
+    // init environment
+    if (!initEnv())
+    {
+        ROS_ERROR("[TopicMgr::start] init environment fail");
+        return false;
+    }
+
     // start thread
     {
         if (!mStopFlag)
@@ -36,7 +42,7 @@ bool TopicMgr::start()
 
         ROS_DEBUG("[TopicMgr::start] start thread");
         mStopFlag = false;
-        mThreads.emplace_back(&TopicMgr::threadFunc, this);
+        mThreads.emplace_back(&TopicMgr::threadFunc, this, this);
     }
 
     return true;
@@ -61,6 +67,9 @@ void TopicMgr::stop()
             ROS_DEBUG("[TopicMgr::stop] threads not running");
         }
     }
+
+    // close environment
+    closeEnv();
 }
 
 void TopicMgr::join()
@@ -69,39 +78,33 @@ void TopicMgr::join()
         t.join();
 }
 
-void TopicMgr::threadFunc()
+void TopicMgr::threadFunc(TopicMgr *pTopicMgr)
 {
     ROS_DEBUG("[TopicMgr::threadFunc] TopicMgr thread start");
 
     while (!mStopFlag)
     {
-        // init env
-        if (!initEnv())
-        {
-            ROS_ERROR("[TopicMgr::threadFunc] init fail. sleep %d seconds",
-                      INTERVAL_CONNECT_RETRY);
-            this_thread::sleep_for(chrono::seconds(INTERVAL_CONNECT_RETRY));
-            continue;
-        }
-
         // main routine
         try
         {
-            map<int, VideoTopic::Session_t> soc2Session;
             struct epoll_event events[EPOLL_MAX_EVENTS];
 
             while (!mStopFlag)
             {
-                int nRet = epoll_wait(mEpollfd, events, EPOLL_MAX_EVENTS, INTERVAL_EPOLL_RETRY);
+                int nRet = epoll_wait(mEpollfd,
+                                      events,
+                                      EPOLL_MAX_EVENTS,
+                                      INTERVAL_EPOLL_RETRY);
                 if (nRet < 0)
                 {
                     if (errno == EAGAIN || errno == EINTR)
                     {
-                        this_thread::sleep_for(chrono::milliseconds(INTERVAL_EPOLL_RETRY));
+                        this_thread::sleep_for(
+                            chrono::milliseconds(INTERVAL_EPOLL_RETRY));
                     }
                     else
                     {
-                        ROS_ERROR("[TopicMgr::threadFunc] epoll fail. Error[%d]: %s",
+                        ROS_ERROR("[TopicMgr::threadFunc] epoll fail: %d - %s",
                                   errno, strerror(errno));
                         break;
                     }
@@ -114,15 +117,26 @@ void TopicMgr::threadFunc()
 
                 for (int i = 0; i < nRet; ++i)
                 {
-                    int soc = events[i].data.fd;
-                    if (!onSoc(events[i].events, soc2Session[soc]))
+                    VideoTopic::Session_t *pSession =
+                        static_cast<VideoTopic::Session_t *>(events[i].data.ptr);
+                    if (!onSoc(events[i].events, pSession))
                     {
-                        ROS_DEBUG("[TopicMgr::threadFunc] Remove soc[%d]", soc);
+                        ROS_DEBUG("[TopicMgr::threadFunc] Remove soc[%d]",
+                                  pSession->fd);
 
-                        // unbind video stream socket and session
-                        soc2Session.erase(soc);
                         // remove socket from epoll
-                        epoll_ctl(mEpollfd, EPOLL_CTL_DEL, soc, NULL);
+                        epoll_ctl(mEpollfd, EPOLL_CTL_DEL, pSession->fd, NULL);
+
+                        // release session object
+                        VideoTopic::releaseSession(pSession);
+
+                        // remove from session map
+                        ROS_DEBUG("[TopicMgr::threadFunc] remove from session map");
+
+                        lock_guard<mutex> lock(pTopicMgr->mAccessMutex);
+                        VideoStreamInfo_t videoStreamInfo(pSession);
+                        pTopicMgr->mSessionMap.erase(videoStreamInfo);
+                        delete pSession;
                     }
                 }
             }
@@ -131,9 +145,6 @@ void TopicMgr::threadFunc()
         {
             ROS_ERROR_STREAM("[TopicMgr::threadFunc] catch an exception." << e.what());
         }
-
-        // close env
-        closeEnv();
 
         if (!mStopFlag)
         {
@@ -201,159 +212,78 @@ bool TopicMgr::onSoc(unsigned int socEvents, VideoTopic::Session_t *pSession)
     return true;
 }
 
-// bool TopicMgr::onRead(VideoTopic::Session_t &session)
-// {
-//     assert(session.validate());
+bool TopicMgr::createSession(ros::NodeHandle nh, const char *host, int port)
+{
+    lock_guard<mutex> lock(mAccessMutex);
 
-//     // receive data from socket
-//     void *p;
-//     int len;
+    // searching in session map
+    VideoStreamInfo_t videoStreamInfo(host, port);
+    if (mSessionMap.find(videoStreamInfo) != mSessionMap.end())
+    {
+        // session existed
+        ROS_ERROR("[TopicMgr::createSession] session for %s:%d existed", host, port);
+        return false;
+    }
 
-//     std::tie(p, len) = session.buffer.getRecvBuf();
+    // create session object
+    VideoTopic::Session_t *pSession =
+        VideoTopic::createSession(nh, mEpollfd, host, port);
+    if (!pSession)
+    {
+        ROS_ERROR("[TopicMgr::createSession] create session object fail");
+        return false;
+    }
 
-//     int nRet = recv(session.soc, p, len, 0);
-//     if (nRet < 0)
-//     {
-//         ROS_ERROR("[TopicMgr::onRead] client[%d] read fail. Error[%d]: %s",
-//                   session.soc, errno, strerror(errno));
-//         return false;
-//     }
-//     else if (nRet == 0)
-//     {
-//         ROS_DEBUG("[TopicMgr::onRead] client[%d] session closed by peer", session.soc);
-//         return false;
-//     }
+    // add session into epoll
+    pSession->events = EPOLLIN;
+    struct epoll_event event;
 
-//     // adjust end pos
-//     session.buffer.incRecvEnd(nRet);
+    event.data.ptr = pSession;
+    event.events = pSession->events;
+    if (epoll_ctl(mEpollfd, EPOLL_CTL_ADD, pSession->fd, &event))
+    {
+        ROS_ERROR("[TopicMgr::createSession] epoll add fail. Error[%d]: %s",
+                  errno, strerror(errno));
+        VideoTopic::releaseSession(pSession);
+        delete pSession;
+    }
 
-//     // parse signaling from raw buffer
-//     Document doc;
-//     while (!session.buffer.recvBufEmpty())
-//     {
-//         nRet = parseSig(session.buffer, doc);
-//         if (nRet != SUCCESS)
-//         {
-//             if (nRet == NEED_MORE_DATA)
-//             {
-//                 // need more data
-//                 break;
-//             }
-//             else
-//             {
-//                 ROS_ERROR("[TopicMgr::onRead] soc[%d] parse signaling fail", session.soc);
-//                 return false;
-//             }
-//         }
+    mSessionMap[videoStreamInfo] = pSession;
 
-//         // process signaling
-//         if (!mOnSigCallbak(session.buffer, doc))
-//         {
-//             ROS_ERROR("[TopicMgr::onRead] soc[%d] process signaling fail", session.soc);
-//             return false;
-//         }
-//     }
+    return true;
+}
 
-//     // is recv buffer full
-//     if (session.buffer.recvBufFull())
-//     {
-//         ROS_ERROR("[TopicMgr::onRead] recv buf of soc[%d] full", session.soc);
-//         return false;
-//     }
+void TopicMgr::closeSession(const char *host, int port)
+{
+    VideoStreamInfo_t videoStreamInfo(host, port);
 
-//     // are there data in send buffer?
-//     if (!session.buffer.sendBufEmpty())
-//     {
-//         return setSocWritable(session, true);
-//     }
+    lock_guard<mutex> lock(mAccessMutex);
 
-//     return true;
-// }
+    // searching in session map
+    auto it = mSessionMap.find(videoStreamInfo);
+    if (it == mSessionMap.end())
+    {
+        // session existed
+        ROS_WARN("[TopicMgr::closeSession] session %s:%d not exist", host, port);
+        return;
+    }
+    VideoTopic::Session_t *pSession = it->second;
 
-// bool TopicMgr::onWrite(VideoTopic::Session_t &session)
-// {
-//     assert(session.validate());
+    // remove session from epoll
+    if (epoll_ctl(mEpollfd, EPOLL_CTL_DEL, pSession->fd, nullptr))
+    {
+        ROS_ERROR("[TopicMgr::closeSession] epoll remove fail. Error[%d]: %s",
+                  errno, strerror(errno));
+    }
 
-//     void *p;
-//     int len;
-//     std::tie(p, len) = session.buffer.getSendData();
+    // remove from session map
+    mSessionMap.erase(it);
 
-//     int nRet = send(session.soc, p, len, 0);
-//     if (nRet < 0)
-//     {
-//         if (errno == EAGAIN || errno == EWOULDBLOCK)
-//         {
-//             return true;
-//         }
-
-//         ROS_ERROR("[TopicMgr::onWrite] soc[%d] write fail. Error[%d]: %s", session.soc, errno, strerror(errno));
-//         return false;
-//     }
-
-//     // ROS_DEBUG("[TopicMgr::onWrite] soc[%d] send %d bytes", session.soc, nRet);
-
-//     session.buffer.incSendStart(nRet);
-//     if (session.buffer.sendBufEmpty())
-//     {
-//         // stop send
-
-//         // ROS_DEBUG("[TopicMgr::onWrite] soc[%d] stop send", session.soc);
-
-//         return setSocWritable(session, false);
-//     }
-
-//     return true;
-// }
-
-// bool TopicMgr::setSocWritable(VideoTopic::Session_t &session, bool writable)
-// {
-//     bool update = false;
-//     struct epoll_event event;
-
-//     if (writable)
-//     {
-//         // set EPOLLOUT
-//         update = 0 == (session.events & EPOLLOUT) ? session.events |= EPOLLOUT, true : false;
-//     }
-//     else
-//     {
-//         // remove EPOLLOUT
-//         update = 1 == (session.events & EPOLLOUT) ? session.events &= ~EPOLLOUT, true : false;
-//     }
-
-//     if (update)
-//     {
-//         event.data.fd = session.soc;
-//         event.events = session.events;
-//         if (epoll_ctl(mEpollfd, EPOLL_CTL_MOD, session.soc, &event))
-//         {
-//             ROS_ERROR("[TopicMgr::setSocWritable] epoll_ctl for soc[%d] fail. Error[%d]: %s",
-//                       session.soc, errno, strerror(errno));
-//             return false;
-//         }
-//     }
-
-//     return true;
-// }
-
-// int TopicMgr::parseSig(BufType &buffer, Document &sig)
-// {
-//     char *p;
-//     int len;
-//     tie(p, len) = buffer.getRecvData();
-
-//     int nRet = RCMP::parse(p, len, sig);
-//     if (nRet != SUCCESS)
-//     {
-//         ROS_ERROR("[TopicMgr::parseSig] RCMP parse fail.");
-//         return nRet;
-//     }
-
-//     // adjust buffer pos
-//     buffer.incRecvStart(len);
-
-//     return SUCCESS;
-// }
+    // release session
+    // TODO: add reference count
+    VideoTopic::releaseSession(pSession);
+    delete pSession;
+}
 
 } // namespace videonode
 } // namespace car
