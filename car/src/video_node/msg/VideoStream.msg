@@ -1,1 +1,1 @@
-int8[] VideoStream
+int8[] buffer
