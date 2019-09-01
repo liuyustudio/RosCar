@@ -54,13 +54,13 @@ VideoTopic::Session_t *VideoTopic::createSession(ros::NodeHandle nh,
     }
 
     // close session and delete it
-    closeSession(pSession);
+    releaseSession(pSession);
     delete pSession;
 
     return nullptr;
 }
 
-void VideoTopic::closeSession(VideoTopic::Session_t *pSession)
+void VideoTopic::releaseSession(VideoTopic::Session_t *pSession)
 {
     // release socket
     if (pSession->fd)
@@ -116,6 +116,9 @@ bool VideoTopic::relay(VideoTopic::Session_t *pSession, const void *buffer, int 
 bool VideoTopic::initSession(Session_t *pSession, ros::NodeHandle nh,
                              int epollfd, const char *host, int port)
 {
+    pSession->host = host;
+    pSession->port = port;
+
     // init socket (connect to service on video host)
     {
         // create socket

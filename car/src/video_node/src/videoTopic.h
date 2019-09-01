@@ -2,6 +2,7 @@
 #define _ROSCAR_CAR_VIDEONODE_VIDEOTOPIC_H_
 
 #include <sys/epoll.h>
+#include <string>
 #include <ros/ros.h>
 #include "roscar_common/sessionBuffer.hpp"
 #include "define.h"
@@ -26,6 +27,8 @@ public:
     {
         int fd;
         uint32_t events;
+        std::string host;
+        int port;
         ros::Publisher publisher;
 
         _Session() : fd(0), events(0) {}
@@ -33,6 +36,8 @@ public:
         {
             fd = src.fd;
             events = src.events;
+            host = src.host;
+            port = src.port;
             publisher = src.publisher;
         }
     } Session_t;
@@ -45,7 +50,7 @@ public:
                                     int epollfd,
                                     const char *host,
                                     int port);
-    static void closeSession(Session_t *pSession);
+    static void releaseSession(Session_t *pSession);
     static bool onRead(Session_t *pSession);
     static bool relay(Session_t *pSession, const void *buffer, int bufLen);
 
