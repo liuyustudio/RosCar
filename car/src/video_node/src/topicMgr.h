@@ -33,14 +33,12 @@ protected:
     bool initEnv();
     void closeEnv();
 
-    bool onSoc(unsigned int socEvents, VideoTopic::Session_t &sess);
+    bool onSoc(unsigned int socEvents, VideoTopic::Session_t *pSession);
 
     int mEpollfd;
 
     std::vector<std::thread> mThreads;
     bool mStopFlag;
-
-    std::map<std::string, VideoTopic::Session_t> mSessionMap;
 };
 
 } // namespace videonode

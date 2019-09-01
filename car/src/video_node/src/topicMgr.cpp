@@ -175,12 +175,12 @@ void TopicMgr::closeEnv()
     }
 }
 
-bool TopicMgr::onSoc(unsigned int socEvents, VideoTopic::Session_t &session)
+bool TopicMgr::onSoc(unsigned int socEvents, VideoTopic::Session_t *pSession)
 {
     if (socEvents & EPOLLIN)
     {
         // available for read
-        if (!onRead(session))
+        if (!VideoTopic::onRead(pSession))
         {
             return false;
         }
@@ -188,13 +188,13 @@ bool TopicMgr::onSoc(unsigned int socEvents, VideoTopic::Session_t &session)
     if (socEvents & (EPOLLRDHUP | EPOLLHUP))
     {
         // socket has been closed
-        ROS_DEBUG("[TopicMgr::onSoc] soc[%d] has been closed", session.soc);
+        ROS_DEBUG("[TopicMgr::onSoc] soc[%d] has been closed", pSession->fd);
         return false;
     }
     if (socEvents & EPOLLERR)
     {
         // socket has been closed
-        ROS_ERROR("[TopicMgr::onSoc] soc[%d] fail", session.soc);
+        ROS_ERROR("[TopicMgr::onSoc] soc[%d] fail", pSession->fd);
         return false;
     }
 
