@@ -2,7 +2,7 @@
 #define _ROSCAR_CAR_VIDEONODE_VIDEOTOPIC_H_
 
 #include <sys/epoll.h>
-
+#include <ros/ros.h>
 #include "roscar_common/sessionBuffer.hpp"
 #include "define.h"
 
@@ -16,8 +16,9 @@ namespace videonode
 class VideoTopic
 {
 public:
-    static const int TOPIC_NAME_LENGTH = 16;
+    static const int TOPIC_NAME_LENGTH = 32;
     static const int STREAM_ERRBUF_SIZE = 4096;
+    static const int ROS_PUBLISHER_QUEUE_SIZE = 1024;
 
     using SessionBufType = roscar_common::SessionBuffer<STREAM_ERRBUF_SIZE>;
 
@@ -25,17 +26,32 @@ public:
     {
         int fd;
         uint32_t events;
-        char name[TOPIC_NAME_LENGTH + 1];
+        ros::Publisher publisher;
+
+        _Session() : fd(0), events(0) {}
+        _Session &operator=(const _Session &src)
+        {
+            fd = src.fd;
+            events = src.events;
+            publisher = src.publisher;
+        }
     } Session_t;
 
 private:
     VideoTopic() = default;
 
 public:
-    static bool initSession(Session_t & session, int epollfd, const char * host, int port);
-    static void closeSession(Session_t & session);
-    static bool onRead(Session_t &session);
-    static bool sendTopic(Session_t &session);
+    static Session_t *createSession(ros::NodeHandle nh,
+                                    int epollfd,
+                                    const char *host,
+                                    int port);
+    static void closeSession(Session_t *pSession);
+    static bool onRead(Session_t *pSession);
+    static bool relay(Session_t *pSession, const void *buffer, int bufLen);
+
+private:
+    static bool initSession(Session_t *pSession, ros::NodeHandle nh,
+                            int epollfd, const char *host, int port);
 };
 
 } // namespace videonode
