@@ -59,7 +59,7 @@ add_service_files(
   Register.srv
   Unregister.srv
   VideoList.srv
-  VideoTopic.srv
+  OpenTopic.srv
 )
 
 ## Generate actions in the 'action' folder

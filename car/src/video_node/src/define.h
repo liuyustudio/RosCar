@@ -17,18 +17,22 @@ typedef struct _Video
 {
     std::string nodeId;
     std::string nodeVideoId;
-    std::string videoInfo;
+    std::string addr;
+    int port;
 
     uint32_t id;
 
-    template <typename T>
+    _Video() = default;
+    template<typename T>
     _Video(T &_nodeId,
            T &_nodeVideoId,
-           T &_videoInfo,
+           T &_addr,
+           const int _port,
            const uint32_t _id = 0)
         : nodeId(_nodeId),
           nodeVideoId(_nodeVideoId),
-          videoInfo(_videoInfo),
+          addr(_addr),
+          port(_port),
           id(id)
     {
     }
@@ -40,7 +44,8 @@ typedef struct _Video
     {
         nodeId = src.nodeId;
         nodeVideoId = src.nodeVideoId;
-        videoInfo = src.videoInfo;
+        addr = src.addr;
+        port = src.port;
         id = src.id;
 
         return *this;
@@ -52,7 +57,8 @@ typedef struct _Video
         ss << "{"
            << R"("nodeId":")" << nodeId << R"(",)"
            << R"("nodeVideoId":")" << nodeVideoId << R"(",)"
-           << R"("videoInfo":")" << videoInfo << R"(",)"
+           << R"("addr":")" << addr << R"(",)"
+           << R"("port":")" << port << R"(",)"
            << R"("id":)" << id
            << "}";
         std::move(ss.str());

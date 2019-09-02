@@ -23,10 +23,15 @@ public:
     DB() = default;
     virtual ~DB() = default;
 
-    ReturnType addVideo(const char *nodeId, const char *nodeVideoId, const char *videoInfo);
+    ReturnType addVideo(const char *nodeId,
+                        const char *nodeVideoId,
+                        const char *addr,
+                        const int port);
     ReturnType removeVideo(const char *nodeId, const char *nodeVideoId);
     bool hasVideo(const char *nodeId, const char *nodeVideoId) const;
-    ReturnType getVideo(const char *nodeId, const char *nodeVideoId, Video_t &video) const;
+    ReturnType getVideo(const char *nodeId,
+                        const char *nodeVideoId,
+                        Video_t &video) const;
     void getVideoList(std::list<Video_t> &videoList) const;
     ReturnType findVideo(const uint32_t id, Video_t &video);
 

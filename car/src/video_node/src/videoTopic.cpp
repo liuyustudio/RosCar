@@ -24,7 +24,7 @@ namespace car
 namespace videonode
 {
 
-VideoTopic::Session_t *VideoTopic::createSession(ros::NodeHandle nh,
+VideoTopic::Session_t *VideoTopic::createSession(ros::NodeHandle &nh,
                                                  int epollfd,
                                                  const char *host,
                                                  int port)
@@ -113,7 +113,7 @@ bool VideoTopic::relay(VideoTopic::Session_t *pSession, const void *buffer, int 
     return true;
 }
 
-bool VideoTopic::initSession(Session_t *pSession, ros::NodeHandle nh,
+bool VideoTopic::initSession(Session_t *pSession, ros::NodeHandle &nh,
                              int epollfd, const char *host, int port)
 {
     pSession->host = host;

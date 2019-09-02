@@ -52,15 +52,14 @@ public:
         }
     } Comparator_t;
 
-    TopicMgr(ros::NodeHandle nodeHandle)
-        : mStopFlag(false) {}
+    TopicMgr() : mStopFlag(false) {}
     virtual ~TopicMgr() = default;
 
     bool start();
     void stop();
     void join();
 
-    bool createSession(ros::NodeHandle nh, const char *host, int port);
+    bool createSession(ros::NodeHandle &nh, const char *host, int port);
     void closeSession(const char *host, int port);
 
 protected:

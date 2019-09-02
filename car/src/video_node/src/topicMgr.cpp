@@ -11,6 +11,7 @@
 #include "roscar_common/error.h"
 
 using namespace std;
+using namespace ros;
 using namespace roscar::car::roscar_common;
 
 namespace roscar
@@ -136,6 +137,7 @@ void TopicMgr::threadFunc(TopicMgr *pTopicMgr)
                         lock_guard<mutex> lock(pTopicMgr->mAccessMutex);
                         VideoStreamInfo_t videoStreamInfo(pSession);
                         pTopicMgr->mSessionMap.erase(videoStreamInfo);
+                        // TODO: check reference count
                         delete pSession;
                     }
                 }
@@ -212,7 +214,7 @@ bool TopicMgr::onSoc(unsigned int socEvents, VideoTopic::Session_t *pSession)
     return true;
 }
 
-bool TopicMgr::createSession(ros::NodeHandle nh, const char *host, int port)
+bool TopicMgr::createSession(NodeHandle &nh, const char *host, int port)
 {
     lock_guard<mutex> lock(mAccessMutex);
 
@@ -245,6 +247,7 @@ bool TopicMgr::createSession(ros::NodeHandle nh, const char *host, int port)
         ROS_ERROR("[TopicMgr::createSession] epoll add fail. Error[%d]: %s",
                   errno, strerror(errno));
         VideoTopic::releaseSession(pSession);
+        // TODO: check reference count
         delete pSession;
     }
 
@@ -280,7 +283,7 @@ void TopicMgr::closeSession(const char *host, int port)
     mSessionMap.erase(it);
 
     // release session
-    // TODO: add reference count
+    // TODO: check reference count
     VideoTopic::releaseSession(pSession);
     delete pSession;
 }

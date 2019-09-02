@@ -15,12 +15,13 @@ namespace car
 namespace videonode
 {
 
-DB::ReturnType DB::addVideo(const char *nodeId, const char *nodeVideoId, const char *videoInfo)
+DB::ReturnType DB::addVideo(const char *nodeId,
+                            const char *nodeVideoId,
+                            const char *addr,
+                            const int port)
 {
-    ROS_DEBUG("[DB::addVideo] add video(%s.%s): %s",
-              nodeId,
-              nodeVideoId,
-              videoInfo);
+    ROS_DEBUG("[DB::addVideo] add video(%s.%s) service: %s:%d",
+              nodeId, nodeVideoId, addr, port);
 
     if (hasVideo(nodeId, nodeVideoId))
     {
@@ -35,7 +36,7 @@ DB::ReturnType DB::addVideo(const char *nodeId, const char *nodeVideoId, const c
         return ReturnType(ERROR, string(buf));
     }
 
-    Video_t video(nodeId, nodeVideoId, videoInfo, ++mVideoId);
+    Video_t video(nodeId, nodeVideoId, addr, port, ++mVideoId);
     mVideoList.emplace_back(video);
 
     return ReturnType(SUCCESS, "");

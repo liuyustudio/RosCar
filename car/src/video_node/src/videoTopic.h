@@ -46,7 +46,7 @@ private:
     VideoTopic() = default;
 
 public:
-    static Session_t *createSession(ros::NodeHandle nh,
+    static Session_t *createSession(ros::NodeHandle &nh,
                                     int epollfd,
                                     const char *host,
                                     int port);
@@ -55,7 +55,7 @@ public:
     static bool relay(Session_t *pSession, const void *buffer, int bufLen);
 
 private:
-    static bool initSession(Session_t *pSession, ros::NodeHandle nh,
+    static bool initSession(Session_t *pSession, ros::NodeHandle &nh,
                             int epollfd, const char *host, int port);
 };
 
