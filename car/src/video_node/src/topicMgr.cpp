@@ -24,8 +24,10 @@ namespace videonode
 const int TopicMgr::INTERVAL_EPOLL_RETRY = 100;
 const int TopicMgr::INTERVAL_CONNECT_RETRY = 7;
 
-bool TopicMgr::start()
+bool TopicMgr::start(ros::NodeHandle &nodeHandle)
 {
+    mNodeHandle = nodeHandle;
+
     // init environment
     if (!initEnv())
     {
@@ -35,10 +37,10 @@ bool TopicMgr::start()
 
     // start thread
     {
-        if (!mStopFlag)
+        if (mStopFlag)
         {
-            ROS_ERROR("[TopicMgr::start] stop thread first");
-            return false;
+            ROS_INFO("[TopicMgr::start] stop thread first");
+            stop();
         }
 
         ROS_DEBUG("[TopicMgr::start] start thread");
@@ -85,9 +87,9 @@ void TopicMgr::threadFunc(TopicMgr *pTopicMgr)
 
     while (!mStopFlag)
     {
-        // main routine
         try
         {
+            time_t curTime;
             struct epoll_event events[EPOLL_MAX_EVENTS];
 
             while (!mStopFlag)
@@ -116,11 +118,12 @@ void TopicMgr::threadFunc(TopicMgr *pTopicMgr)
                     continue;
                 }
 
+                curTime = time(nullptr);
                 for (int i = 0; i < nRet; ++i)
                 {
                     VideoTopic::Session_t *pSession =
                         static_cast<VideoTopic::Session_t *>(events[i].data.ptr);
-                    if (!onSoc(events[i].events, pSession))
+                    if (!onSoc(curTime, events[i].events, pSession))
                     {
                         ROS_DEBUG("[TopicMgr::threadFunc] Remove soc[%d]",
                                   pSession->fd);
@@ -188,12 +191,14 @@ void TopicMgr::closeEnv()
     }
 }
 
-bool TopicMgr::onSoc(unsigned int socEvents, VideoTopic::Session_t *pSession)
+bool TopicMgr::onSoc(time_t curTime,
+                     unsigned int socEvents,
+                     VideoTopic::Session_t *pSession)
 {
     if (socEvents & EPOLLIN)
     {
         // available for read
-        if (!VideoTopic::onRead(pSession))
+        if (!VideoTopic::onRead(curTime, pSession))
         {
             return false;
         }
@@ -214,7 +219,7 @@ bool TopicMgr::onSoc(unsigned int socEvents, VideoTopic::Session_t *pSession)
     return true;
 }
 
-bool TopicMgr::createSession(NodeHandle &nh, const char *host, int port)
+bool TopicMgr::createSession(const char *host, int port)
 {
     lock_guard<mutex> lock(mAccessMutex);
 
@@ -229,7 +234,7 @@ bool TopicMgr::createSession(NodeHandle &nh, const char *host, int port)
 
     // create session object
     VideoTopic::Session_t *pSession =
-        VideoTopic::createSession(nh, mEpollfd, host, port);
+        VideoTopic::createSession(mNodeHandle, mEpollfd, host, port);
     if (!pSession)
     {
         ROS_ERROR("[TopicMgr::createSession] create session object fail");

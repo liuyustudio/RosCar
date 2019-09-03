@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <thread>
+#include <time.h>
 #include <mutex>
 #include "ros/ros.h"
 #include "videoTopic.h"
@@ -55,11 +56,11 @@ public:
     TopicMgr() : mStopFlag(false) {}
     virtual ~TopicMgr() = default;
 
-    bool start();
+    bool start(ros::NodeHandle &nodeHandle);
     void stop();
     void join();
 
-    bool createSession(ros::NodeHandle &nh, const char *host, int port);
+    bool createSession(const char *host, int port);
     void closeSession(const char *host, int port);
 
 protected:
@@ -67,9 +68,12 @@ protected:
     bool initEnv();
     void closeEnv();
 
-    bool onSoc(unsigned int socEvents, VideoTopic::Session_t *pSession);
+    bool onSoc(time_t curTime,
+               unsigned int socEvents,
+               VideoTopic::Session_t *pSession);
 
     int mEpollfd;
+    ros::NodeHandle mNodeHandle;
 
     std::vector<std::thread> mThreads;
     bool mStopFlag;

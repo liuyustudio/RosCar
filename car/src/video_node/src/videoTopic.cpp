@@ -76,7 +76,7 @@ void VideoTopic::releaseSession(VideoTopic::Session_t *pSession)
     }
 }
 
-bool VideoTopic::onRead(VideoTopic::Session_t *pSession)
+bool VideoTopic::onRead(time_t curTime, VideoTopic::Session_t *pSession)
 {
     char buffer[STREAM_ERRBUF_SIZE];
 
@@ -94,10 +94,13 @@ bool VideoTopic::onRead(VideoTopic::Session_t *pSession)
     }
 
     // send to corresponding topic
-    return relay(pSession, buffer, nRet);
+    return relay(curTime, pSession, buffer, nRet);
 }
 
-bool VideoTopic::relay(VideoTopic::Session_t *pSession, const void *buffer, int bufLen)
+bool VideoTopic::relay(time_t curTime,
+                       VideoTopic::Session_t *pSession,
+                       const void *buffer,
+                       int bufLen)
 {
     // relay streaming data only if there are audiences.
     if (0 < pSession->publisher.getNumSubscribers())
@@ -108,6 +111,16 @@ bool VideoTopic::relay(VideoTopic::Session_t *pSession, const void *buffer, int 
         memcpy(msg.buffer.data(), buffer, bufLen);
 
         pSession->publisher.publish(msg);
+        pSession->lastPlayTime = curTime;
+    }
+    else
+    {
+        long idelTime = curTime - pSession->lastPlayTime;
+        if (TOPIC_MAX_IDEL_TIME > idelTime) {
+            ROS_INFO("[VideoTopic::relay] topic[%s] timeout",
+                      pSession->publisher.getTopic().c_str());
+            return false;
+        }
     }
 
     return true;
