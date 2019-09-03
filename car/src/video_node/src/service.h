@@ -38,15 +38,16 @@ protected:
     static bool onOpenTopic(::video_node::OpenTopic::Request &req,
                             ::video_node::OpenTopic::Response &res);
 
-    static ros::NodeHandle gNodeHandle;
-    static std::mutex gAccessMutex;
+    static Service * gpService;
 
-    static DB gVideoDB;
-    static TopicMgr gTopicMgr;
+    std::mutex mAccessMutex;
 
-    static ros::ServiceServer gSrvList;
-    static ros::ServiceServer gSrvRegister;
-    static ros::ServiceServer gSrvUnregister;
+    DB mVideoDB;
+    TopicMgr mTopicMgr;
+
+    ros::ServiceServer mSrvList;
+    ros::ServiceServer mSrvRegister;
+    ros::ServiceServer mSrvUnregister;
 };
 
 } // namespace videonode
