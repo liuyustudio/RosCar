@@ -2,7 +2,6 @@
 #define _ROSCAR_CAR_INTERFACE_UDS_H_
 
 #include <string.h>
-#include <mutex>
 #include <thread>
 #include <vector>
 #include "rapidjson/document.h"
@@ -75,7 +74,6 @@ protected:
     std::vector<std::thread> mThreadArray;
     bool mStopFlag;
 
-    std::mutex mAccessMutex;
     OnSigCallbak mOnSigCallbak;
 };
 

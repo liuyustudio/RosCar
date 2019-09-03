@@ -1,0 +1,7 @@
+string node_id
+string video_id
+string addr
+int32 port
+---
+int32 err_code
+string err_msg
