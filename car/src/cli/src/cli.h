@@ -47,6 +47,8 @@ protected:
     bool onSigInfoResp(rapidjson::Document &sig);
     bool onCmd_Move(std::vector<std::string> &cmd);
     bool onSigMoveResp(rapidjson::Document &sig);
+    bool onCmd_Video(std::vector<std::string> &cmd);
+    bool onSigVideoResp(rapidjson::Document &sig);
 };
 
 } // namespace cli
