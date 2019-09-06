@@ -80,7 +80,7 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 
 #### 3.2.2. 回复信令格式
 
-```json
+``` json
 {
   "cmd": "cmd id",
   "seq": 0,
@@ -134,7 +134,9 @@ RCMP 信令符合 JSON 规范。格式定义如下：
 * 会话建立后，每当空闲超过 30 秒，通信双方需发送 Ping 信令维持会话。当连续两个 Ping 信令没有响应时，此会话应被断开。
 * 当通讯双方检测到数据帧发生错误时，应发送错误码为 INV_FMT 的回复信令（此回复中消息 ID 为空，序列号为 0），然后断开链路。
 * 会话建立后，通讯双方均可通过 Logout 信令中断会话。发送方发送 Logout 信令并等待相关回复后即可断开链路；
+
   接受方接收 Logout 信令并发送相关回复后即可断开链路。
+
 * 本协议支持收到回复数据包之前并发发送请求数据包。最大并发量设定为 64。
 
 ### 3.4. 会话状态机
@@ -169,7 +171,7 @@ payload 含义：
 
 LoginResp 信令格式定义如下：
 
-```json
+``` json
 {
   "cmd": "LoginResp",
   "seq": 0,
@@ -201,7 +203,7 @@ payload 含义：
 
 LogoutResp 信令格式定义如下：
 
-```json
+``` json
 {
   "cmd": "LogoutResp",
   "seq": 0,
@@ -233,7 +235,7 @@ payload 含义：
 
 Pong 信令格式定义如下：
 
-```json
+``` json
 {
   "cmd": "Pong",
   "seq": 0,
@@ -265,7 +267,7 @@ payload 含义：
 
 InfoResp 信令格式定义如下：
 
-```json
+``` json
 {
   "cmd": "InfoResp",
   "seq": 0,
@@ -296,7 +298,7 @@ Move 信令格式定义如下：
   "payload": {
     "angle": 0,
     "power": 100,
-    "duration": 0,
+    "duration": 0
   }
 }
 ```
@@ -309,7 +311,7 @@ payload 含义：
 
 MoveResp 信令格式定义如下：
 
-```json
+``` json
 {
   "cmd": "MoveResp",
   "seq": 0,
@@ -322,3 +324,88 @@ MoveResp 信令格式定义如下：
 payload 含义：
 
 无
+
+### 4.6. Video
+
+#### 4.6.1. List video request 与 response
+
+request 信令格式定义如下：
+
+``` json
+{
+  "cmd": "Video",
+  "seq": 0,
+  "payload": {
+    "action": "list"
+  }
+}
+```
+
+payload 含义：
+
+* action: list - 列出当前可用视频流。
+
+VideoResp 信令格式定义如下：
+
+``` json
+{
+  "cmd": "VideoResp",
+  "seq": 0,
+  "errno": 0,
+  "errmsg": "",
+  "payload": {
+    "action": "list",
+    "list":  [
+      {"node": "node id 1", "video": "video id 1"},
+      {"node": "node id 2", "video": "video id 2"}
+    ]
+  }
+}
+```
+
+payload 含义：
+
+* action: 固定为 list。
+* list: 视频流信息列表，包括各个视频流的 node id 及 video id。
+
+#### 4.6.2. Open video request 与 response
+
+Video List 信令格式定义如下：
+
+``` json
+{
+  "cmd": "Video",
+  "seq": 0,
+  "payload": {
+    "action": "open",
+    "node": "node id",
+    "video": "video id"
+  }
+}
+```
+
+payload 含义：
+
+* action: open - 开启指定视频流（以 Topic 方式播放流）。
+* node: 视频流所属的 node id。
+* video: 视频流 id。
+
+VideoResp 信令格式定义如下：
+
+``` json
+{
+  "cmd": "VideoResp",
+  "seq": 0,
+  "errno": 0,
+  "errmsg": "",
+  "payload": {
+    "action": "open",
+    "topic": "topic id",
+  }
+}
+```
+
+payload 含义：
+
+* action: 固定为 open。
+* topic: 包含视频流的 Topic 名。
