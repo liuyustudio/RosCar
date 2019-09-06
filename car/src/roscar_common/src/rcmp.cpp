@@ -8,7 +8,7 @@
 #include "const.h"
 #include "error.h"
 
-#include "schemaSig.cpp"
+#include "schemaSig.h"
 
 using namespace std;
 using namespace rapidjson;
