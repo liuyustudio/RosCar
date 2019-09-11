@@ -21,6 +21,33 @@ namespace car
 namespace pilot
 {
 
+bool CamMgr::start()
+{
+    // open camera
+    ROS_DEBUG("[CamMgr::start] open camera");
+    Camera_t cam("fakeCam");
+
+    int errCode;
+    string errMsg;
+    tie(errCode, errMsg) = openCamera(cam);
+    if (errCode != SUCCESS)
+    {
+        ROS_ERROR("[CamMgr::start] oper camera fail: %d - %s",
+                  errCode, errMsg.c_str());
+        return false;
+    }
+
+    // TODO: register on video node
+
+    return true;
+}
+
+void CamMgr::stop()
+{
+    Camera_t cam("fakeCam");
+    closeCamera(cam);
+}
+
 bool CamMgr::isValid(string &uri)
 {
     auto queryInfo = [&uri](int fd) -> bool {

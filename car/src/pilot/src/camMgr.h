@@ -20,6 +20,7 @@ public:
     bool start();
     void stop();
 
+protected:
     bool isValid(std::string &uri);
     void queryCams(std::vector<std::string> &uriArray);
     roscar_common::ReturnType openCamera(roscar_common::Camera_t &camera);
