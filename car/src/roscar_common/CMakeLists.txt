@@ -122,6 +122,7 @@ include_directories(
 # Declare a C++ library
 add_library(${PROJECT_NAME}
   src/rcmp.cpp
+  src/utils.cpp
 )
 
 ## Add cmake target dependencies of the library
