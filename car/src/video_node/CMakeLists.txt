@@ -56,10 +56,10 @@ add_message_files(
 # Generate services in the 'srv' folder
 add_service_files(
   FILES
-  Register.srv
-  Unregister.srv
-  VideoList.srv
-  OpenTopic.srv
+  StreamRegister.srv
+  StreamDeregister.srv
+  StreamList.srv
+  StreamForward.srv
 )
 
 ## Generate actions in the 'action' folder
