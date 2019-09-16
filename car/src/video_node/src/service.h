@@ -5,10 +5,10 @@
 
 #include "ros/ros.h"
 
-#include "video_node/List.h"
-#include "video_node/Register.h"
-#include "video_node/Unregister.h"
-#include "video_node/OpenTopic.h"
+#include "video_node/StreamList.h"
+#include "video_node/StreamRegister.h"
+#include "video_node/StreamDeregister.h"
+#include "video_node/StreamForward.h"
 #include "db.h"
 #include "topicMgr.h"
 
@@ -29,16 +29,16 @@ protected:
     Service() = default;
     virtual ~Service() = default;
 
-    static bool onList(::video_node::List::Request &req,
-                       ::video_node::List::Response &res);
-    static bool onRegister(::video_node::Register::Request &req,
-                           ::video_node::Register::Response &res);
-    static bool onUnregister(::video_node::Unregister::Request &req,
-                             ::video_node::Unregister::Response &res);
-    static bool onOpenTopic(::video_node::OpenTopic::Request &req,
-                            ::video_node::OpenTopic::Response &res);
+    static bool onList(video_node::StreamList::Request &req,
+                       video_node::StreamList::Response &res);
+    static bool onRegister(video_node::StreamRegister::Request &req,
+                           video_node::StreamRegister::Response &res);
+    static bool onDeregister(video_node::StreamDeregister::Request &req,
+                             video_node::StreamDeregister::Response &res);
+    static bool onOpenTopic(video_node::StreamForward::Request &req,
+                            video_node::StreamForward::Response &res);
 
-    static Service * gpService;
+    static Service *gpService;
 
     std::mutex mAccessMutex;
 
@@ -47,7 +47,7 @@ protected:
 
     ros::ServiceServer mSrvList;
     ros::ServiceServer mSrvRegister;
-    ros::ServiceServer mSrvUnregister;
+    ros::ServiceServer mSrvDeregister;
 };
 
 } // namespace videonode

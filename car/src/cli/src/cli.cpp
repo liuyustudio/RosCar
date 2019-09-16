@@ -36,6 +36,10 @@ bool Cli::onCmd(vector<string> &cmd)
     {
         return onCmd_Move(cmd);
     }
+    else if (0 == strcasecmp(cmd[0].c_str(), "video"))
+    {
+        return onCmd_Video(cmd);
+    }
     else if ((0 == strcasecmp(cmd[0].c_str(), "q")) ||
              (0 == strcasecmp(cmd[0].c_str(), "quit")))
     {
@@ -133,7 +137,7 @@ bool Cli::onCmd_Move(vector<string> &cmd)
 
     stringstream ss;
 
-    ss << R"({ "cmd": "Move", "seq": 0, "payload": {)"
+    ss << R"({"cmd": "Move", "seq": 0, "payload": {)"
        << R"(  "angle":)" << angle
        << R"(, "power": )" << power
        << R"(, "duration": )" << duration
@@ -163,6 +167,71 @@ bool Cli::onSigMoveResp(Document &sig)
     }
 
     ROS_INFO("\t move ok.");
+    printf("> ");
+    fflush(nullptr);
+
+    return true;
+}
+
+bool Cli::onCmd_Video(vector<string> &cmd)
+{
+    if (cmd.size() < 2)
+    {
+        ROS_ERROR("syntax: video [list/open] [args...]");
+        return true;
+    }
+
+    // parse video action
+    string request;
+    if (0 == strcasecmp(cmd[1].c_str(), "list"))
+    {
+        // list existed video stream
+        request = R"({"cmd": "Video", "seq": 0, "payload": {)"
+                  R"(  "action": "list")"
+                  R"(}})";
+    }
+    else if (0 == strcasecmp(cmd[1].c_str(), "open"))
+    {
+        // open video stream
+        if (cmd.size() < 4)
+        {
+            ROS_ERROR("syntax: video open [nodeId] [videoId]");
+            return true;
+        }
+
+        stringstream ss;
+
+        ss << R"({"cmd": "Video", "seq": 0, "payload": {)"
+           << R"(  "action": "open",)"
+           << R"(  "node": ")" << cmd[2] << R"(",)"
+           << R"(  "video": ")" << cmd[3] << R"(")"
+           << R"(}})";
+        request = ss.str();
+    }
+
+    // remove space
+    request.erase(remove_if(request.begin(), request.end(),
+                            [](unsigned char ch) { return isspace(ch); }),
+                  request.end());
+
+    // put request into list
+    sendRequest(request);
+
+    return true;
+}
+
+bool Cli::onSigVideoResp(Document &sig)
+{
+    int _errno = sig[RCMP::FIELD_ERRNO].GetInt();
+    if (_errno != SUCCESS)
+    {
+        // query Video fail
+        const char *_errmsg = sig[RCMP::FIELD_ERRMSG].GetString();
+        ROS_ERROR("[Cli::onSigVideoResp] video cmd fail. Error: %d. %s", _errno, _errmsg);
+        return false;
+    }
+
+    ROS_INFO("\t video cmd ok.");
     printf("> ");
     fflush(nullptr);
 

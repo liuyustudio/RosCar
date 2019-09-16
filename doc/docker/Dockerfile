@@ -12,6 +12,9 @@ RUN apt-get install -y libreadline-dev
 # install debug tools
 RUN apt-get install -y tmux vim libc6-dbg gdb valgrind
 
+# install libv4l
+RUN apt-get install -y libv4l-dev
+
 # install rapid json
 ADD https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz /tmp
 RUN cd /tmp && \
@@ -29,4 +32,4 @@ RUN rm -f /bin/sh && ln -s /bin/bash /bin/sh
 
 # set default environment
 USER liuyu
-#WORKDIR /home/liuyu
+WORKDIR /car

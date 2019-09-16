@@ -54,18 +54,6 @@ public:
     static const char *SIG_MOVE;
     static const char *SIG_MOVE_RESP;
 
-    static const char *SCHEMA_SIG;
-    static const char *SCHEMA_SIG_LOGIN;
-    static const char *SCHEMA_SIG_LOGIN_RESP;
-    static const char *SCHEMA_SIG_LOGOUT;
-    static const char *SCHEMA_SIG_LOGOUT_RESP;
-    static const char *SCHEMA_SIG_PING;
-    static const char *SCHEMA_SIG_PONG;
-    static const char *SCHEMA_SIG_INFO;
-    static const char *SCHEMA_SIG_INFO_RESP;
-    static const char *SCHEMA_SIG_MOVE;
-    static const char *SCHEMA_SIG_MOVE_RESP;
-
     typedef struct FRAME
     {
         unsigned char startFlag;
