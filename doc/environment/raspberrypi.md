@@ -1,5 +1,10 @@
 # Install ROS Car on Raspberry Pi
 
+Reference:
+
+- Installing ROS Kinetic on the Raspberry Pi ([http://wiki.ros.org/ROSberryPi/Installing%20ROS%20Kinetic%20on%20the%20Raspberry%20Pi](http://wiki.ros.org/ROSberryPi/Installing%20ROS%20Kinetic%20on%20the%20Raspberry%20Pi))
+- Install Boost 1.58 [https://www.boost.org/doc/libs/1_58_0/more/getting_started/unix-variants.html](https://www.boost.org/doc/libs/1_58_0/more/getting_started/unix-variants.html)
+
 ## Target
 
 - target hw:
@@ -17,32 +22,95 @@
   Codename:       buster
   ```
 
-## setup environment
+## Install ROS
 
-### install ROS
+### Prerequisites
 
-Install from source ([http://wiki.ros.org/kinetic/Installation/Source](http://wiki.ros.org/kinetic/Installation/Source))
+Setup ROS Repositories
 
 ```sh
-apt-get install python-rosdep python-rosinstall-generator python-wstool python-rosinstall build-essential
+sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
 
+sudo apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key 421C365BD9FF1F717815A3895523BAEEB01FA116
+
+sudo apt update
+sudo apt upgrade -y
+```
+
+Install Bootstrap Dependencies
+
+```sh
+sudo apt-get install -y python-rosdep python-rosinstall-generator python-wstool python-rosinstall build-essential cmake
+```
+
+Initializing rosdep
+
+```sh
+sudo rosdep init
+rosdep update
+```
+
+### Installation
+
+Create a catkin Workspace
+
+```sh
 mkdir ~/ros_catkin_ws
 cd ~/ros_catkin_ws
+```
 
-#----------------------------------------------------------------
-# # Desktop-Full Install: ROS, rqt, rviz, robot-generic libraries, 2D/3D simulators, navigation and 2D/3D perception
-#
-#     $ rosinstall_generator desktop_full --rosdistro kinetic --deps --wet-only --tar > kinetic-desktop-full-wet.rosinstall
-#     $ wstool init -j8 src kinetic-desktop-full-wet.rosinstall
-#
-#----------------------------------------------------------------
-# # Desktop Install (recommended): ROS, rqt, rviz, and robot-generic libraries
-#
-#     $ rosinstall_generator desktop --rosdistro kinetic --deps --wet-only --tar > kinetic-desktop-wet.rosinstall
-#     $ wstool init -j8 src kinetic-desktop-wet.rosinstall
-#
-#----------------------------------------------------------------
-# # install ROS-Comm: (Bare Bones)
+fetch the core packages
+
+```sh
 rosinstall_generator ros_comm --rosdistro kinetic --deps --wet-only --tar > kinetic-ros_comm-wet.rosinstall
-wstool init -j8 src kinetic-ros_comm-wet.rosinstall
+wstool init src kinetic-ros_comm-wet.rosinstall
+```
+
+### Resolv Dependencies
+
+Unavailable Dependencies
+
+```sh
+mkdir -p ~/ros_catkin_ws/external_src
+cd ~/ros_catkin_ws/external_src
+wget http://sourceforge.net/projects/assimp/files/assimp-3.1/assimp-3.1.1_no_test_models.zip/download -O assimp-3.1.1_no_test_models.zip
+unzip assimp-3.1.1_no_test_models.zip
+cd assimp-3.1.1
+cmake .
+make
+sudo make install
+```
+
+Resolving Dependencies with rosdep
+
+```sh
+# Raspbian Buster:
+cd ~/ros_catkin_ws
+rosdep install -y --from-paths src --ignore-src --rosdistro kinetic -r --os=debian:buster
+```
+
+### Building the catkin Workspace
+
+Install Boost 1.58
+
+```sh
+mkdir -p /tmp/boost
+cd /tmp/boost
+wget http://sourceforge.net/projects/boost/files/boost/1.58.0/boost_1_58_0.tar.bz2
+tar jxf boost_1_58_0.tar.bz2
+cd boost_1_58_0
+./bootstrap.sh
+./b2 install
+```
+
+Invoke catkin_make_isolated
+
+```sh
+sudo ./src/catkin/bin/catkin_make_isolated --install -DCMAKE_BUILD_TYPE=Release --install-space /opt/ros/kinetic
+```
+
+setup.bash in the ~/.bashrc
+
+```sh
+echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
 ```
