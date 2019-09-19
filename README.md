@@ -2,6 +2,34 @@
 
 用以学习、展示 ROS 系统应用的树莓派小车模型 。
 
+<!-- TOC -->
+
+- [1. 前言](#1-前言)
+- [2. 项目](#2-项目)
+    - [2.1. 开发准备](#21-开发准备)
+        - [2.1.1. 硬件](#211-硬件)
+        - [2.1.2. 软件](#212-软件)
+    - [2.2. 系统框架](#22-系统框架)
+        - [2.2.1. Top View](#221-top-view)
+    - [2.3. Interface](#23-interface)
+    - [2.4. 基础架构](#24-基础架构)
+    - [2.5. 子模块说明](#25-子模块说明)
+        - [2.5.1. cli](#251-cli)
+        - [2.5.2. interface](#252-interface)
+        - [2.5.3. pilot](#253-pilot)
+        - [2.5.4. roscar_common](#254-roscar_common)
+        - [2.5.5. video_node](#255-video_node)
+        - [2.5.6. video_recorder](#256-video_recorder)
+- [3. 通讯协议](#3-通讯协议)
+- [4. ROS Car Server](#4-ros-car-server)
+- [5. ROS Car](#5-ros-car)
+    - [5.1. ROS Car 框架图](#51-ros-car-框架图)
+- [6. ROS Interfaces](#6-ros-interfaces)
+- [7. 其它](#7-其它)
+    - [7.1. 推荐列表](#71-推荐列表)
+
+<!-- /TOC -->
+
 ## 1. 前言
 
 开始这个项目的目的有三：
@@ -92,6 +120,32 @@ ROS Car 项目基础架构如下图所示:
 
 ![Infrastructure](doc/images/phase-zero/tldInfrastructure.svg)
 
+### 2.5. 子模块说明
+
+#### 2.5.1. cli
+
+TBD
+
+#### 2.5.2. interface
+
+TBD
+
+#### 2.5.3. pilot
+
+TBD
+
+#### 2.5.4. roscar_common
+
+TBD
+
+#### 2.5.5. video_node
+
+TBD
+
+#### 2.5.6. video_recorder
+
+TBD
+
 ## 3. 通讯协议
 
 为在外部系统与 ROS Car 服务器 以及 ROS Car 服务器 与 ROS Car 终端之间进行数据交互，
@@ -106,7 +160,7 @@ TBD.
 
 ## 5. ROS Car
 
-### ROS Car 框架图
+### 5.1. ROS Car 框架图
 
 ROS Car 框架如下图所示
 
