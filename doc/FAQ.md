@@ -5,10 +5,10 @@
 - [1. build/compile](#1-buildcompile)
     - [1.1. Hot to put headers into devel/include filder with catkin_make](#11-hot-to-put-headers-into-develinclude-filder-with-catkin_make)
     - [1.2. build debug version](#12-build-debug-version)
-- [start node](#start-node)
-    - [docker container](#docker-container)
-        - [create docker container](#create-docker-container)
-        - [debug in docker container](#debug-in-docker-container)
+- [2. start node](#2-start-node)
+    - [2.1. docker container](#21-docker-container)
+        - [2.1.1. create docker container](#211-create-docker-container)
+        - [2.1.2. debug in docker container](#212-debug-in-docker-container)
 
 <!-- /TOC -->
 
@@ -65,11 +65,11 @@ ref: [http://www.liuyu.com/linux/ssh/2019/08/10/debug-ros-node-by-gdb.html](http
 catkin_make -DCMAKE_BUILD_TYPE=Debug
 ```
 
-## start node
+## 2. start node
 
-### docker container
+### 2.1. docker container
 
-#### create docker container
+#### 2.1.1. create docker container
 
 - enable debug version
 
@@ -83,7 +83,7 @@ catkin_make -DCMAKE_BUILD_TYPE=Debug
     docker run -it --hostname rosCar --name rosCar -v /workspace/project/rosCar/car:/car roscar:ros-kinetic-base bash
     ```
 
-#### debug in docker container
+#### 2.1.2. debug in docker container
 
 ```sh
 rosrun --prefix 'gdb -ex run --args' interface interface

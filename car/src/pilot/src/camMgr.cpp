@@ -7,8 +7,11 @@
 #include <sys/ioctl.h>
 #include <exception>
 #include <regex>
-#include "ros/ros.h"
+#include <ros/ros.h>
 #include "roscar_common/error.h"
+#include "roscar_common/utils.h"
+#include "video_node/StreamRegister.h"
+#include "video_node/StreamDeregister.h"
 
 using namespace std;
 using namespace ros;
@@ -21,11 +24,23 @@ namespace car
 namespace pilot
 {
 
+const char *CamMgr::DEFAULT_NODE_ID = "pilot_node";
+const char *CamMgr::DEFAULT_VIDEO_ID = "default_video";
+
 bool CamMgr::start()
 {
+    // get default ip address
+    IPv4_t ip;
+    if (!Utils::getDefaultIp(ip))
+    {
+        ROS_ERROR("[CamMgr::start] get default ip fail");
+        return false;
+    }
+    ROS_DEBUG_STREAM("[CamMgr::start] default IP: " << ip);
+
     // open camera
     ROS_DEBUG("[CamMgr::start] open camera");
-    Camera_t cam("fakeCam");
+    Camera_t cam("defaultCam");
 
     int errCode;
     string errMsg;
@@ -37,14 +52,52 @@ bool CamMgr::start()
         return false;
     }
 
-    // TODO: register on video node
+    // register default video stream
+    ROS_DEBUG("[CamMgr::start] register default video stream");
+    ros::NodeHandle nh;
+    ros::ServiceClient client;
+    client = nh.serviceClient<video_node::StreamRegister>("register");
+    video_node::StreamRegister srv;
+    srv.request.addr = ip.str();
+    srv.request.port = DEFAULT_STREAM_PORT;
+    srv.request.node_id = DEFAULT_NODE_ID;
+    srv.request.video_id = DEFAULT_VIDEO_ID;
+    if (!client.call(srv))
+    {
+        ROS_INFO("[CamMgr::start] Register video stream fail: %d - %s",
+                 srv.response.err_code, srv.response.err_msg.c_str());
+
+        // close camera
+        ROS_DEBUG("[CamMgr::start] close camera");
+        Camera_t cam("defaultCam");
+        closeCamera(cam);
+
+        return false;
+    }
 
     return true;
 }
 
 void CamMgr::stop()
 {
-    Camera_t cam("fakeCam");
+    // deregister from video node
+    ROS_DEBUG("[CamMgr::stop] deregister from video node");
+    ros::NodeHandle nh;
+    ros::ServiceClient client;
+    client = nh.serviceClient<video_node::StreamDeregister>("deregister");
+
+    video_node::StreamDeregister srv;
+    srv.request.node_id = DEFAULT_NODE_ID;
+    srv.request.video_id = DEFAULT_VIDEO_ID;
+    if (!client.call(srv))
+    {
+        ROS_INFO("[CamMgr::start] deregister from video node fail: %d - %s",
+                 srv.response.err_code, srv.response.err_msg.c_str());
+    }
+
+    // close camera
+    ROS_DEBUG("[CamMgr::stop] close camera");
+    Camera_t cam("defaultCam");
     closeCamera(cam);
 }
 
