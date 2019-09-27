@@ -29,6 +29,7 @@
     - [5.1. ROS Car 框架图](#51-ros-car-框架图)
 - [6. ROS Interfaces](#6-ros-interfaces)
 - [7. 其它](#7-其它)
+    - [第三方库](#第三方库)
     - [7.1. 推荐列表](#71-推荐列表)
 
 <!-- /TOC -->
@@ -242,6 +243,12 @@ ROS Car 框架如下图所示
 TBD.
 
 ## 7. 其它
+
+### 第三方库
+
+在本项目中用到的第三方库有：
+
+- rapidjson: [http://rapidjson.org/](http://rapidjson.org/)
 
 ### 7.1. 推荐列表
 
